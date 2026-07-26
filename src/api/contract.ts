@@ -27,9 +27,9 @@ export interface CensoApi {
    *  Endpoint: POST /censos */
   saveRegistro(input: RegistroCensoInput): Promise<RegistroCenso>;
 
-  /** Indicadores del Dashboard (§9).
-   *  Endpoint: GET /censos/resumen */
-  getResumen(): Promise<Resumen>;
+  /** Indicadores del Dashboard (§9). El backend los calcula por ruta del inspector.
+   *  Endpoint: GET /censos/resumen?ruta=… */
+  getResumen(ruta?: string): Promise<Resumen>;
 
   /** Reporte corporativo: censados + pendientes de FROG (§10).
    *  Endpoint: GET /censos/reporte */

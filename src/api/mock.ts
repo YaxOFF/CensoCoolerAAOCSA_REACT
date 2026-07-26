@@ -122,7 +122,8 @@ export const mockApi: CensoApi = {
     return rec;
   },
 
-  async getResumen() {
+  async getResumen(_ruta?: string) {
+    // El mock ignora la ruta: FROG simulado es uno solo.
     await delay();
     return construirResumen(await leer(), FROG, CATALOGOS);
   },

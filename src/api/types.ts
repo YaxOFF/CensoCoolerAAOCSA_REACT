@@ -74,6 +74,8 @@ export interface Resumen {
   censados: number;
   pendientes: number;
   porcentaje: number;
+  /** Folio consecutivo de la ruta. Solo lo devuelve el backend real. */
+  folio?: number;
   porStatus: Record<Status, number>;
   porEstado: Distribucion[];
   porCedis: Distribucion[];

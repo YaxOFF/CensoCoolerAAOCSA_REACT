@@ -19,6 +19,31 @@ import type {
   TipoFoto,
 } from './types';
 
+/** Forma exacta que hoy responde GET /censos/resumen?ruta=… */
+interface ResumenApi {
+  ruta: string;
+  folio: number;
+  totalFrog: number;
+  censados: number;
+  faltantes: number;
+}
+
+function mapResumen(r: ResumenApi): Resumen {
+  return {
+    totalFrog: r.totalFrog,
+    censados: r.censados,
+    pendientes: r.faltantes,
+    porcentaje: r.totalFrog ? Math.round((r.censados / r.totalFrog) * 100) : 0,
+    folio: r.folio,
+    // El backend todavía no calcula distribuciones; el Dashboard las muestra vacías.
+    porStatus: { CORRECTO: 0, 'CORRECCIÓN': 0, NUEVO: 0 },
+    porEstado: [],
+    porCedis: [],
+    porTipo: [],
+    porMarcaModelo: [],
+  };
+}
+
 export const httpApi: CensoApi = {
   async lookupEnfriador(numeroSerie) {
     try {
@@ -38,8 +63,11 @@ export const httpApi: CensoApi = {
     return request<RegistroCenso>('/censos', { method: 'POST', body: input });
   },
 
-  getResumen() {
-    return request<Resumen>('/censos/resumen');
+  async getResumen(ruta?: string) {
+    // El backend solo devuelve los totales: { ruta, folio, totalFrog, censados, faltantes }.
+    // El resto del Resumen (porcentaje y distribuciones) se deriva aquí para no tocar las pantallas.
+    const r = await request<ResumenApi>(`/censos/resumen${ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''}`);
+    return mapResumen(r);
   },
 
   getReporte() {

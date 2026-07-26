@@ -36,6 +36,7 @@ export default function HomeScreen() {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, marginLeft: 4 }}>
         <Tag text={`Ruta ${ruta ?? '—'}`} color={colors.blue} />
+        {resumen?.folio != null && <Tag text={`Folio ${resumen.folio}`} color={colors.amber} />}
         <MiniButton onPress={salir}>Cambiar ruta</MiniButton>
       </View>
 
@@ -46,6 +47,7 @@ export default function HomeScreen() {
           items={[
             { valor: resumen.totalFrog, etiqueta: 'En FROG', color: colors.blue },
             { valor: resumen.censados, etiqueta: 'Censados', color: colors.green },
+            { valor: resumen.pendientes, etiqueta: 'Faltantes', color: colors.red },
             { valor: `${resumen.porcentaje}%`, etiqueta: 'Avance', color: colors.amber },
           ]}
         />

@@ -5,8 +5,8 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
 const TIMEOUT_MS = 15000;
 
-/** Token de sesión. Se setea desde el login cuando exista auth real. */
-let authToken: string | null = null;
+/** Token de sesión. Arranca con el del .env; setAuthToken lo reemplaza cuando exista auth real. */
+let authToken: string | null = process.env.EXPO_PUBLIC_API_TOKEN ?? null;
 export function setAuthToken(token: string | null) {
   authToken = token;
 }
