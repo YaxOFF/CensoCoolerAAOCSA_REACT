@@ -6,6 +6,7 @@
      §12.2 En Piso fuerza cliente = BODEGA.
      §12.3 Al guardar se registran GPS, fecha, hora y usuario. */
 
+import { Ionicons } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -224,7 +225,7 @@ export default function FormScreen() {
         </Field>
 
         {estado === 'En Piso' && (
-          <Note>⚠︎ "En Piso": el cliente se asigna automáticamente a BODEGA.</Note>
+          <Note>"En Piso": el cliente se asigna automáticamente a BODEGA.</Note>
         )}
 
         <Field label="Observaciones">
@@ -249,9 +250,13 @@ export default function FormScreen() {
                   {foto && esFotoMock(foto.uri) && (
                     <View style={[StyleSheet.absoluteFill, { backgroundColor: TINTES[tipo] }]} />
                   )}
-                  {!foto && <Text style={s.fotoCam}>📷</Text>}
+                  {!foto && <Ionicons name="camera-outline" size={24} color={colors.text2} />}
                   <Text style={[s.fotoLabel, !!foto && { color: '#fff' }]}>{tipo}</Text>
-                  {!!foto && <Text style={s.fotoCheck}>✓</Text>}
+                  {!!foto && (
+                    <View style={s.fotoCheck}>
+                      <Ionicons name="checkmark" size={12} color="#fff" />
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
@@ -261,8 +266,8 @@ export default function FormScreen() {
 
         <Field label="Ubicación GPS">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <GhostButton onPress={capturarGps} disabled={ubicando}>
-              {ubicando ? 'Obteniendo…' : '📍 Obtener ubicación'}
+            <GhostButton onPress={capturarGps} disabled={ubicando} icon={ubicando ? undefined : 'location-outline'}>
+              {ubicando ? 'Obteniendo…' : 'Obtener ubicación'}
             </GhostButton>
             <Text style={[s.gps, gps && { color: colors.green, fontWeight: '600' }]}>
               {gps ? `${fmtCoord(gps.lat)}, ${fmtCoord(gps.lng)}${gps.mock ? ' (simulada)' : ''}` : 'Sin capturar'}
@@ -299,21 +304,17 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   fotoLlena: { borderStyle: 'solid', borderColor: colors.green },
-  fotoCam: { fontSize: 22 },
   fotoLabel: { fontSize: 11, color: colors.text2, fontWeight: '600' },
   fotoCheck: {
     position: 'absolute',
     top: 4,
     right: 6,
-    color: '#fff',
     backgroundColor: colors.green,
     borderRadius: 9,
     width: 18,
     height: 18,
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 18,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gps: { fontSize: 13, color: colors.text2 },
 });

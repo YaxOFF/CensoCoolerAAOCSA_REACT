@@ -1,5 +1,6 @@
 /* DoneScreen — done.html de la demo: confirmación del censo guardado (§8, Censado = SI). */
 
+import { Ionicons } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -18,7 +19,7 @@ export default function DoneScreen() {
     <Screen>
       <Card style={{ alignItems: 'center' }}>
         <View style={s.check}>
-          <Text style={s.checkText}>✓</Text>
+          <Ionicons name="checkmark" size={44} color="#fff" />
         </View>
         <H2>Censo guardado</H2>
         <Muted style={{ marginBottom: 8 }}>
@@ -58,5 +59,4 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  checkText: { color: '#fff', fontSize: 40, fontWeight: '700' },
 });

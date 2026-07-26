@@ -74,11 +74,21 @@ export default function ReportScreen() {
       </Muted>
 
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-        <GhostButton onPress={() => exportar('csv')} disabled={exportando !== null} style={{ flex: 1 }}>
-          {exportando === 'csv' ? 'Exportando…' : '⤓ Excel (CSV)'}
+        <GhostButton
+          onPress={() => exportar('csv')}
+          disabled={exportando !== null}
+          icon={exportando === 'csv' ? undefined : 'download-outline'}
+          style={{ flex: 1 }}
+        >
+          {exportando === 'csv' ? 'Exportando…' : 'Excel (CSV)'}
         </GhostButton>
-        <GhostButton onPress={() => exportar('pdf')} disabled={exportando !== null} style={{ flex: 1 }}>
-          {exportando === 'pdf' ? 'Exportando…' : '🖨 PDF'}
+        <GhostButton
+          onPress={() => exportar('pdf')}
+          disabled={exportando !== null}
+          icon={exportando === 'pdf' ? undefined : 'print-outline'}
+          style={{ flex: 1 }}
+        >
+          {exportando === 'pdf' ? 'Exportando…' : 'PDF'}
         </GhostButton>
       </View>
 

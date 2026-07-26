@@ -1,13 +1,9 @@
 /* Tab bar de la demo: Inicio · Censar · Historial · Panel. */
 
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Text, type ColorValue } from 'react-native';
 
 import { colors } from '@/theme';
-
-function Icono({ emoji, color }: { emoji: string; color: ColorValue }) {
-  return <Text style={{ fontSize: 20, color }}>{emoji}</Text>;
-}
 
 export default function TabsLayout() {
   return (
@@ -28,7 +24,9 @@ export default function TabsLayout() {
         options={{
           title: 'Inicio',
           headerShown: false,
-          tabBarIcon: ({ color }) => <Icono emoji="🏠" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -36,14 +34,16 @@ export default function TabsLayout() {
         options={{
           title: 'Censar',
           headerTitle: 'Buscar enfriador',
-          tabBarIcon: ({ color }) => <Icono emoji="◎" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="scan-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'Historial',
-          tabBarIcon: ({ color }) => <Icono emoji="🗂" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'albums' : 'albums-outline'} size={22} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -51,7 +51,9 @@ export default function TabsLayout() {
         options={{
           title: 'Panel',
           headerTitle: 'Dashboard',
-          tabBarIcon: ({ color }) => <Icono emoji="📊" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={22} color={color} />
+          ),
         }}
       />
     </Tabs>

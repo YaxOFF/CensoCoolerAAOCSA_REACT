@@ -3,7 +3,8 @@
    Todo vive en un archivo porque son piezas chicas que siempre se usan juntas.
    No hay librería de UI a propósito: la demo define su propio lenguaje visual. */
 
-import { ReactNode } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -70,15 +71,33 @@ export function ViewHead({ children }: { children: ReactNode }) {
 
 /* ── Botones ──────────────────────────────────────────────────────────── */
 
+/** Nombre de icono de Ionicons (@expo/vector-icons). */
+export type IconName = ComponentProps<typeof Ionicons>['name'];
+
 interface BtnProps {
   onPress: () => void;
   children: ReactNode;
+  /** Icono opcional a la izquierda del texto. */
+  icon?: IconName;
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-export function PrimaryButton({ onPress, children, disabled, loading, style }: BtnProps) {
+/* El icono va dentro del <Text> del botón: así hereda tamaño de línea y
+   centrado sin envolver todo en una View extra. Los márgenes no funcionan en
+   <Text> anidados en Android, de ahí el espacio literal. */
+function Icono({ name }: { name?: IconName }) {
+  if (!name) return null;
+  return (
+    <Text>
+      <Ionicons name={name} size={17} />
+      {'  '}
+    </Text>
+  );
+}
+
+export function PrimaryButton({ onPress, children, icon, disabled, loading, style }: BtnProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -93,31 +112,40 @@ export function PrimaryButton({ onPress, children, disabled, loading, style }: B
       {loading ? (
         <ActivityIndicator color="#fff" />
       ) : (
-        <Text style={s.btnPrimaryText}>{children}</Text>
+        <Text style={s.btnPrimaryText}>
+          <Icono name={icon} />
+          {children}
+        </Text>
       )}
     </Pressable>
   );
 }
 
-export function SecondaryButton({ onPress, children, style }: BtnProps) {
+export function SecondaryButton({ onPress, children, icon, style }: BtnProps) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [s.btnSecondary, pressed && { backgroundColor: colors.card2 }, style]}
     >
-      <Text style={s.btnSecondaryText}>{children}</Text>
+      <Text style={s.btnSecondaryText}>
+        <Icono name={icon} />
+        {children}
+      </Text>
     </Pressable>
   );
 }
 
-export function GhostButton({ onPress, children, style, disabled }: BtnProps) {
+export function GhostButton({ onPress, children, icon, style, disabled }: BtnProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [s.btnGhost, pressed && { opacity: 0.6 }, disabled && s.btnDisabled, style]}
     >
-      <Text style={s.btnGhostText}>{children}</Text>
+      <Text style={s.btnGhostText}>
+        <Icono name={icon} />
+        {children}
+      </Text>
     </Pressable>
   );
 }
@@ -353,7 +381,11 @@ export function ProgressBar({ pct }: { pct: number }) {
 export function Note({ children }: { children: ReactNode }) {
   return (
     <View style={s.note}>
-      <Text style={s.noteText}>{children}</Text>
+      <Text style={s.noteText}>
+        <Ionicons name="warning-outline" size={14} />
+        {'  '}
+        {children}
+      </Text>
     </View>
   );
 }

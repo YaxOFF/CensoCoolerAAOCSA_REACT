@@ -1,5 +1,6 @@
 /* HomeScreen — home.html de la demo: KPIs de avance y accesos rápidos. */
 
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
@@ -54,9 +55,15 @@ export default function HomeScreen() {
 
       <View style={{ gap: 12, marginTop: 20 }}>
         {/* navigate y no push: son tabs, no queremos apilar la misma pantalla. */}
-        <PrimaryButton onPress={() => router.navigate('/search')}>◎  Escanear / Capturar serie</PrimaryButton>
-        <SecondaryButton onPress={() => router.navigate('/dashboard')}>📊  Dashboard</SecondaryButton>
-        <SecondaryButton onPress={() => router.navigate('/history')}>🗂  Historial</SecondaryButton>
+        <PrimaryButton onPress={() => router.navigate('/search')} icon="scan-outline">
+          Escanear / Capturar serie
+        </PrimaryButton>
+        <SecondaryButton onPress={() => router.navigate('/dashboard')} icon="stats-chart-outline">
+          Dashboard
+        </SecondaryButton>
+        <SecondaryButton onPress={() => router.navigate('/history')} icon="albums-outline">
+          Historial
+        </SecondaryButton>
       </View>
 
       {USE_MOCK && (

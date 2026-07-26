@@ -56,8 +56,8 @@ export default function DashboardScreen() {
       <Section>Avance por CEDIS</Section>
       <DistBars data={resumen.porCedis} total={resumen.censados} color={colors.green} />
 
-      <PrimaryButton onPress={() => router.push('/report')} style={{ marginTop: 24 }}>
-        📄  Reporte corporativo
+      <PrimaryButton onPress={() => router.push('/report')} icon="document-text-outline" style={{ marginTop: 24 }}>
+        Reporte corporativo
       </PrimaryButton>
     </Screen>
   );

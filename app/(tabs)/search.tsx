@@ -2,6 +2,7 @@
    §3: la búsqueda es por escaneo del código de barras o captura manual de la serie.
    El escáner es real (expo-camera); si no hay permiso o cámara, queda el escaneo simulado. */
 
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -78,19 +79,19 @@ export default function SearchScreen() {
                 onBarcodeScanned={({ data }) => onEscaneo(data)}
               />
               <Pressable style={s.cerrar} onPress={() => setEscaneando(false)}>
-                <Text style={s.cerrarText}>✕</Text>
+                <Ionicons name="close" size={18} color="#fff" />
               </Pressable>
             </View>
           ) : (
             <View style={[s.frame, s.frameApagado]}>
-              <Text style={s.frameEmoji}>◎</Text>
+              <Ionicons name="scan-outline" size={38} color={colors.blue} />
               <Text style={s.frameText}>Escáner listo</Text>
             </View>
           )}
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-            <GhostButton onPress={abrirEscaner} style={{ flex: 1 }}>
-              📷 Escanear
+            <GhostButton onPress={abrirEscaner} icon="camera-outline" style={{ flex: 1 }}>
+              Escanear
             </GhostButton>
             {USE_MOCK && (
               <GhostButton
@@ -145,7 +146,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   frameApagado: { gap: 6 },
-  frameEmoji: { fontSize: 34, color: colors.blue },
   frameText: { color: '#8e8e93', fontSize: 12 },
   cerrar: {
     position: 'absolute',
@@ -158,5 +158,4 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cerrarText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
