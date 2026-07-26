@@ -25,7 +25,7 @@ configurados.
 | **La app se cierra sola al abrir, sin error en Metro** | Versión de `react-native-worklets`/`reanimated` distinta a la que Expo Go trae compilada → `SIGSEGV` en `libworklets.so` | Restaurar los `overrides` de `package.json` y `npm install`. Ver *No tocar: los `overrides` de package.json* en `CLAUDE.md` |
 | Cambié `.env` y no pasó nada | Metro cachea variables `EXPO_PUBLIC_*` | `npx expo start -c` (caché limpia) |
 | `EXPO_PUBLIC_API_URL no está configurada` | `USE_MOCK=false` sin `API_URL`, o `.env` no existe | Verificar `.env` (copiado de `.env.example`) y reiniciar con `-c` |
-| Timeout / "El servidor no respondió a tiempo" en Android físico | `API_URL=http://localhost:...` — el teléfono no ve el localhost de la PC | Usar la IP LAN de la máquina de desarrollo, no `localhost` |
+| Timeout / "El servidor no respondió a tiempo" en Android físico | `API_URL=http://localhost:...` — el teléfono no ve el localhost de la PC | `adb reverse tcp:PUERTO tcp:PUERTO` (se pierde al desconectar el cable), o usar la IP LAN. Ver *Backend corriendo en la PC de desarrollo* en `07-CONFIGURACION.md` |
 | Formulario no deja editar campos de cliente/equipo | Es esperado si `status === 'CORRECTO'` (§6) | Revisar `draft.status`; solo `CORRECCIÓN`/`NUEVO` habilitan edición |
 | Cliente se ve forzado a "BODEGA" y no se puede tocar | Estado del enfriador = "En Piso" (§12.2), comportamiento intencional | Cambiar el estado a otro valor para restaurar el cliente previo |
 | "Guardar censo" no hace nada visible | `validarDraft()` bloqueó por falta de estado del enfriador u otro campo obligatorio | Revisar el `Alert.alert` que debió aparecer; completar el campo faltante |

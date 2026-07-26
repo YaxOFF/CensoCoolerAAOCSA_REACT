@@ -54,6 +54,32 @@ No hay separación formal dev/staging/producción con archivos distintos (`.env.
    envoltorio `{ data: … }`, fechas en otro formato), el mapeo se agrega **dentro de**
    `src/api/http.ts`, en el método correspondiente — nunca en las pantallas.
 
+## Backend corriendo en la PC de desarrollo
+
+El `localhost` del teléfono es el teléfono, no la PC. Con el backend en local (p. ej.
+`http://localhost:8090/api`) hay dos caminos:
+
+**`adb reverse` — el recomendado.** Túnel por el cable USB; el `.env` se queda con `localhost` y no
+hace falta tocar firewall ni saber la IP:
+
+```bash
+adb reverse tcp:8090 tcp:8090     # 8090 = el puerto de tu API
+```
+
+Se pierde al desconectar el cable, al reiniciar el teléfono y al reiniciar el `adb` server:
+**hay que volver a correrlo**. Verificar con `adb reverse --list`, y probar desde el teléfono con:
+
+```bash
+adb shell "curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8090/api/censos/resumen?ruta=1"
+```
+
+`401` ya es buena señal: llegó a la API y solo faltó el token. `000` / timeout = el túnel no está.
+
+**IP de la LAN — la alternativa.** `EXPO_PUBLIC_API_URL=http://192.168.x.x:8090/api` (la IP de la PC,
+vía `ip -4 addr`). Requiere que la API escuche en `0.0.0.0` (no solo `127.0.0.1`), que el firewall
+deje pasar el puerto (en Fedora: `sudo firewall-cmd --add-port=8090/tcp`) y que ambos estén en la
+misma red Wi‑Fi. Cambiar la URL obliga a reiniciar con `npx expo start -c`.
+
 ## Comandos esenciales
 
 | Comando | Qué hace |
