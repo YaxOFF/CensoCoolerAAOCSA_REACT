@@ -17,6 +17,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, shadow, statusColor, tint } from '../theme';
 
@@ -403,12 +404,24 @@ export function Loading({ text = 'Cargando…' }: { text?: string }) {
   );
 }
 
-/** Contenedor con scroll y el padding estándar de las pantallas. */
-export function Screen({ children }: { children: ReactNode }) {
+/** Contenedor con scroll y el padding estándar de las pantallas.
+    Con edge-to-edge en Android el contenido corre por debajo de la barra de
+    estado y de la de gestos: se suman los insets al padding.
+    `top` solo en pantallas sin header (el header ya reserva ese espacio). */
+export function Screen({ children, top = false }: { children: ReactNode; top?: boolean }) {
+  const insets = useSafeAreaInsets();
   return (
     <ScrollView
       style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={s.screen}
+      contentContainerStyle={[
+        s.screen,
+        {
+          paddingTop: (top ? insets.top : 0) + 16,
+          paddingBottom: insets.bottom + 40,
+          paddingLeft: insets.left + 16,
+          paddingRight: insets.right + 16,
+        },
+      ]}
       keyboardShouldPersistTaps="handled"
     >
       {children}

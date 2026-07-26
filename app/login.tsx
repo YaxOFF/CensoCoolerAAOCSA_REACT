@@ -25,7 +25,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen>
+    <Screen top>
       <Hero
         kicker="Censo Nacional"
         title="Enfriadores"

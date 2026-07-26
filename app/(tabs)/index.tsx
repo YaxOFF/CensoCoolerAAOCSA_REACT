@@ -27,9 +27,9 @@ export default function HomeScreen() {
   const router = useRouter();
 
   return (
-    <Screen>
+    <Screen top>
       <Hero
-        kicker="Censo Nacional"
+        kicker="Censo AAOCSA"
         title="Enfriadores"
         sub="Captura, valida y registra el parque de enfriadores en campo."
       />
