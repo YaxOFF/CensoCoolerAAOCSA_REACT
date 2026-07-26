@@ -6,6 +6,8 @@
 
 import type {
   Catalogos,
+  CoolersPage,
+  CoolersQuery,
   Enfriador,
   RegistroCenso,
   RegistroCensoInput,
@@ -22,6 +24,10 @@ export interface CensoApi {
   /** Censos ya levantados, para Historial.
    *  Endpoint: GET /censos */
   listRegistros(): Promise<RegistroCenso[]>;
+
+  /** Censos levantados, paginados y filtrables por serie. Es lo que consume Historial.
+   *  Endpoint: GET /coolers?page=1&pageSize=20&serie=ABC */
+  listCoolers(q?: CoolersQuery): Promise<CoolersPage>;
 
   /** Guarda un censo. Reemplaza si ya existe esa serie (§8: Censado = SI).
    *  Endpoint: POST /censos */

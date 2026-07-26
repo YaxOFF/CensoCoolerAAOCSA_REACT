@@ -10,6 +10,8 @@ import { construirReporte, construirResumen, upsertRegistro } from '../lib/rules
 import type { CensoApi } from './contract';
 import type {
   Catalogos,
+  Cooler,
+  CoolersQuery,
   Enfriador,
   EstadoEnfriador,
   RegistroCenso,
@@ -103,6 +105,44 @@ async function escribir(records: RegistroCenso[]): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(records));
 }
 
+/** Un RegistroCenso local visto con la forma que devuelve GET /coolers. */
+function aCooler(r: RegistroCenso, i: number): Cooler {
+  const fecha = new Date(r.fecha);
+  return {
+    id: `mock-${r.numeroSerie}`,
+    serie: r.numeroSerie,
+    folio: i + 1,
+    censoAnio: fecha.getUTCFullYear(),
+    censoMes: fecha.getUTCMonth() + 1,
+    comodato: null,
+    contrato: null,
+    udn: null,
+    ruta: r.ruta,
+    idCliente: r.numeroCliente,
+    razonSocial: r.nombreCliente,
+    denComercial: r.nombreCliente,
+    calle: r.direccion,
+    numero: null,
+    colonia: null,
+    frec: null,
+    descripcion: `${r.marca} ${r.modelo}`,
+    tipoEnfri: r.tipo,
+    anio: null,
+    subStatus: r.estadoEnfriador,
+    observaciones: r.observaciones || null,
+    latitud: r.lat,
+    longitud: r.lng,
+    status: r.status,
+    created: r.fecha,
+    evidencias: r.fotos.map((f, j) => ({
+      id: `mock-foto-${j}`,
+      url: f.uri,
+      pie: f.tipo,
+      created: r.fecha,
+    })),
+  };
+}
+
 export const mockApi: CensoApi = {
   async lookupEnfriador(numeroSerie) {
     await delay();
@@ -113,6 +153,17 @@ export const mockApi: CensoApi = {
   async listRegistros() {
     await delay();
     return leer();
+  },
+
+  async listCoolers({ page = 1, pageSize = 20, serie }: CoolersQuery = {}) {
+    await delay();
+    const filtro = serie?.trim().toUpperCase();
+    const todos = (await leer())
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+      .map(aCooler)
+      .filter((c) => !filtro || c.serie.toUpperCase().includes(filtro));
+    const desde = (page - 1) * pageSize;
+    return { items: todos.slice(desde, desde + pageSize), page, pageSize, totalCount: todos.length };
   },
 
   async saveRegistro(input: RegistroCensoInput) {

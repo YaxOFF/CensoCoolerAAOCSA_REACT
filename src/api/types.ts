@@ -111,6 +111,62 @@ export interface Reporte {
   resumen: Resumen;
 }
 
+/* ── GET /coolers ─────────────────────────────────────────────────────────
+   El backend expone los censos ya levantados con SUS nombres de campo y
+   paginados. Es una vista distinta a RegistroCenso (más campos del cliente,
+   evidencias con URL remota), así que se modela aparte en lugar de forzar el
+   mapeo a RegistroCenso y perder información. */
+
+export interface Evidencia {
+  id: string;
+  url: string;
+  pie: string | null;
+  created: string;
+}
+
+export interface Cooler {
+  id: string;
+  serie: string;
+  folio: number;
+  censoAnio: number;
+  censoMes: number;
+  comodato: string | null;
+  contrato: string | null;
+  udn: string | null;
+  ruta: string | null;
+  idCliente: string | null;
+  razonSocial: string | null;
+  denComercial: string | null;
+  calle: string | null;
+  numero: string | null;
+  colonia: string | null;
+  frec: string | null;
+  descripcion: string | null;
+  tipoEnfri: string | null;
+  anio: string | null;
+  subStatus: string | null;
+  observaciones: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  status: string;
+  created: string;
+  evidencias: Evidencia[];
+}
+
+export interface CoolersPage {
+  items: Cooler[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface CoolersQuery {
+  page?: number;
+  pageSize?: number;
+  /** Filtro por número de serie (coincidencia parcial). */
+  serie?: string;
+}
+
 /** Catálogos del sistema (§4 y §7). Hoy constantes; mañana un endpoint. */
 export interface Catalogos {
   tipos: string[];

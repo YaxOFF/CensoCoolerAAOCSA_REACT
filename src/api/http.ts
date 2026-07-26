@@ -11,6 +11,8 @@ import { ApiError, request } from './client';
 import type { CensoApi } from './contract';
 import type {
   Catalogos,
+  CoolersPage,
+  CoolersQuery,
   Enfriador,
   RegistroCenso,
   RegistroCensoInput,
@@ -44,6 +46,16 @@ function mapResumen(r: ResumenApi): Resumen {
   };
 }
 
+/* El backend emite las URLs de evidencias con SU propio host (en dev, localhost),
+   que desde el teléfono no resuelve. EXPO_PUBLIC_IMG_URL lo reapunta al host
+   alcanzable (IP de la LAN). Sin la variable la URL se deja tal cual, que es lo
+   correcto en producción y con `adb reverse`. */
+const IMG_URL = process.env.EXPO_PUBLIC_IMG_URL?.replace(/\/$/, '');
+
+function hostDeImagenes(url: string): string {
+  return IMG_URL ? url.replace(/^https?:\/\/[^/]+/, IMG_URL) : url;
+}
+
 export const httpApi: CensoApi = {
   async lookupEnfriador(numeroSerie) {
     try {
@@ -57,6 +69,19 @@ export const httpApi: CensoApi = {
 
   listRegistros() {
     return request<RegistroCenso[]>('/censos');
+  },
+
+  async listCoolers({ page = 1, pageSize = 20, serie }: CoolersQuery = {}) {
+    const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (serie?.trim()) qs.set('serie', serie.trim());
+    const r = await request<CoolersPage>(`/coolers?${qs}`);
+    return {
+      ...r,
+      items: r.items.map((c) => ({
+        ...c,
+        evidencias: c.evidencias.map((e) => ({ ...e, url: hostDeImagenes(e.url) })),
+      })),
+    };
   },
 
   saveRegistro(input: RegistroCensoInput) {
