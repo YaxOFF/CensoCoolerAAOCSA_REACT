@@ -22,6 +22,7 @@ configurados.
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
+| **La app se cierra sola al abrir, sin error en Metro** | Versión de `react-native-worklets`/`reanimated` distinta a la que Expo Go trae compilada → `SIGSEGV` en `libworklets.so` | Restaurar los `overrides` de `package.json` y `npm install`. Ver *No tocar: los `overrides` de package.json* en `CLAUDE.md` |
 | Cambié `.env` y no pasó nada | Metro cachea variables `EXPO_PUBLIC_*` | `npx expo start -c` (caché limpia) |
 | `EXPO_PUBLIC_API_URL no está configurada` | `USE_MOCK=false` sin `API_URL`, o `.env` no existe | Verificar `.env` (copiado de `.env.example`) y reiniciar con `-c` |
 | Timeout / "El servidor no respondió a tiempo" en Android físico | `API_URL=http://localhost:...` — el teléfono no ve el localhost de la PC | Usar la IP LAN de la máquina de desarrollo, no `localhost` |

@@ -153,6 +153,37 @@ npm run typecheck      # tsc --noEmit
 Desarrollo con Expo Go alcanza para todo el flujo. Para un APK instalable hace falta un dev build
 con EAS (`npx eas build -p android`), que también es lo que se necesita para producción.
 
+## No tocar: los `overrides` de package.json
+
+```json
+"overrides": {
+  "react-native-reanimated": "4.5.0",
+  "react-native-worklets": "0.10.0",
+  "react-dom": "19.2.3"
+}
+```
+
+**No subir estas versiones, no borrar el bloque, no correr `npm update` sobre ellas.** Si se quitan,
+la app **crashea al arrancar en Expo Go, sin mensaje de error en JS**.
+
+Por qué: `reanimated` y `worklets` entran como deps transitivas de `expo-router`, y su parte nativa
+(`libworklets.so`) viene **compilada dentro del APK de Expo Go**. Expo Go SDK 57 trae reanimated
+`4.5.0` / worklets `0.10.0`. Si npm instala un patch más nuevo (4.5.3 / 0.10.3), el JS habla con un
+nativo que no coincide y el proceso muere con `SIGSEGV` en `memcpy` dentro de `libworklets.so`.
+`react-dom` está pineado a la versión de `react` porque si no, cualquier `npm install` falla con
+ERESOLVE.
+
+Cómo se diagnostica si vuelve a pasar (el error **no** aparece en la consola de Metro):
+
+```bash
+adb logcat -b crash -d | grep -E "signal|libworklets"     # SIGSEGV + libworklets.so ⇒ es esto
+node -p "require('./node_modules/expo/bundledNativeModules.json')['react-native-worklets']"
+node -p "require('./node_modules/react-native-worklets/package.json').version"   # deben ser iguales
+```
+
+Con un dev build de EAS esto deja de importar: ahí el nativo se compila desde `node_modules`, así que
+las versiones siempre coinciden. Los `overrides` existen **solo por Expo Go**.
+
 ## Fuera de alcance por ahora
 
 Decisiones tomadas con el usuario; **no agregar sin pedirlo**:
