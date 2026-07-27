@@ -9,6 +9,7 @@ import {
   Card,
   DistBars,
   Empty,
+  Hero,
   Loading,
   PrimaryButton,
   ProgressBar,
@@ -25,7 +26,9 @@ export default function DashboardScreen() {
   if (!resumen) return <Loading text="Calculando avance…" />;
 
   return (
-    <Screen>
+    <Screen top>
+      <Hero kicker="Panel" title="Dashboard" />
+
       <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Text style={{ fontWeight: '600', color: colors.text }}>Avance general</Text>

@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fmtCoord } from '@/lib/format';
 import { useDraft } from '@/store/draft';
 import { colors } from '@/theme';
-import { Card, H2, KeyValues, Muted, PrimaryButton, Screen, SecondaryButton } from '@/ui';
+import { Card, H2, Hero, KeyValues, Muted, PrimaryButton, Screen, SecondaryButton } from '@/ui';
 
 export default function DoneScreen() {
   const { ultimo } = useDraft();
@@ -17,6 +17,8 @@ export default function DoneScreen() {
 
   return (
     <Screen>
+      <Hero kicker="Paso 3 de 3" title="Censo guardado" />
+
       <Card style={{ alignItems: 'center' }}>
         <View style={s.check}>
           <Ionicons name="checkmark" size={44} color="#fff" />

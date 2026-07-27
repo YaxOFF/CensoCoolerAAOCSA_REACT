@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { oDash } from '@/lib/format';
 import { resolverStatus } from '@/lib/rules';
 import { useDraft } from '@/store/draft';
-import { Badge, Card, H2, KeyValues, Muted, PrimaryButton, Screen, Segmented } from '@/ui';
+import { Badge, Card, H2, Hero, KeyValues, Muted, PrimaryButton, Screen, Segmented } from '@/ui';
 
 export default function ResultScreen() {
   const { draft, actualizar } = useDraft();
@@ -27,6 +27,8 @@ export default function ResultScreen() {
 
   return (
     <Screen>
+      <Hero kicker="Paso 1 de 3" title="Resultado" />
+
       <Card>
         <Badge text={draft.status ?? 'Encontrado en FROG'} />
         <H2>{draft.esNuevo ? 'Serie no encontrada' : 'Equipo localizado'}</H2>

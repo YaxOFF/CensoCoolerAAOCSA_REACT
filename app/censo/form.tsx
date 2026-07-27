@@ -26,6 +26,7 @@ import {
   Field,
   GhostButton,
   H2,
+  Hero,
   Input,
   Muted,
   Note,
@@ -141,6 +142,8 @@ export default function FormScreen() {
 
   return (
     <Screen>
+      <Hero kicker="Paso 2 de 3" title="Formulario" />
+
       <Card>
         <Badge text={draft.status ?? ''} />
         <H2>Datos del cliente y equipo</H2>

@@ -11,7 +11,7 @@ import type { Reporte } from '@/api/types';
 import { exportarCsv, exportarPdf } from '@/lib/export';
 import { useSession } from '@/store/session';
 import { colors } from '@/theme';
-import { Card, Empty, GhostButton, Loading, Muted, Screen } from '@/ui';
+import { Card, Empty, GhostButton, Hero, Loading, Muted, Screen } from '@/ui';
 
 export default function ReportScreen() {
   const [reporte, setReporte] = useState<Reporte | null>(null);
@@ -46,6 +46,8 @@ export default function ReportScreen() {
 
   return (
     <Screen>
+      <Hero kicker="Censo AAOCSA" title="Reporte" />
+
       <Card style={{ marginBottom: 12 }}>
         <Muted>Ruta</Muted>
         <Text style={{ fontSize: 26, fontWeight: '800', color: colors.blue }}>{ruta ?? '—'}</Text>

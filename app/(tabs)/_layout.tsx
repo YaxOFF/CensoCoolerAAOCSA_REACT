@@ -9,9 +9,8 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg },
-        headerShadowVisible: false,
-        headerTitleStyle: { color: colors.text, fontWeight: '700' },
+        // Sin header nativo: cada tab dibuja su propio <Hero>, igual que Inicio.
+        headerShown: false,
         tabBarActiveTintColor: colors.blue,
         tabBarInactiveTintColor: colors.text2,
         tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.line },
@@ -23,7 +22,6 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
           ),
@@ -33,7 +31,6 @@ export default function TabsLayout() {
         name="search"
         options={{
           title: 'Censar',
-          headerTitle: 'Buscar enfriador',
           tabBarIcon: ({ color }) => <Ionicons name="scan-outline" size={22} color={color} />,
         }}
       />
@@ -50,7 +47,6 @@ export default function TabsLayout() {
         name="dashboard"
         options={{
           title: 'Panel',
-          headerTitle: 'Dashboard',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={22} color={color} />
           ),

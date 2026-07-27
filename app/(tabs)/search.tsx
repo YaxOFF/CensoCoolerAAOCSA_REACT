@@ -12,7 +12,7 @@ import { api, USE_MOCK } from '@/api';
 import { SERIES_DEMO } from '@/api/mock';
 import { useDraft } from '@/store/draft';
 import { colors, radius } from '@/theme';
-import { Card, Chip, Field, GhostButton, Input, Muted, PrimaryButton, Screen } from '@/ui';
+import { Card, Chip, Field, GhostButton, Hero, Input, Muted, PrimaryButton, Screen } from '@/ui';
 
 export default function SearchScreen() {
   const [serie, setSerie] = useState('');
@@ -61,7 +61,9 @@ export default function SearchScreen() {
   }
 
   return (
-    <Screen>
+    <Screen top>
+      <Hero kicker="Censar" title="Buscar enfriador" />
+
       <Card>
         <Muted style={{ marginBottom: 16 }}>
           Escanea el código de barras o captura el número de serie.

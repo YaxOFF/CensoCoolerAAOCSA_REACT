@@ -51,7 +51,9 @@ function Navegacion() {
         headerStyle: { backgroundColor: colors.bg },
         headerShadowVisible: false,
         headerTintColor: colors.blue,
-        headerTitleStyle: { color: colors.text, fontWeight: '700' },
+        // El header solo aporta la flecha de regreso; el título grande lo pone
+        // cada pantalla con <Hero>, igual que las tabs.
+        headerTitle: '',
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
