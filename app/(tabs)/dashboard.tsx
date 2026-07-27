@@ -53,8 +53,8 @@ export default function DashboardScreen() {
       <Section>Estado del enfriador</Section>
       <DistBars data={resumen.porEstado} total={resumen.censados} color={colors.blue} />
 
-      <Section>Avance por CEDIS</Section>
-      <DistBars data={resumen.porCedis} total={resumen.censados} color={colors.green} />
+      {/* <Section>Avance por CEDIS</Section>
+      <DistBars data={resumen.porCedis} total={resumen.censados} color={colors.green} /> */}
 
       <PrimaryButton onPress={() => router.push('/report')} icon="document-text-outline" style={{ marginTop: 24 }}>
         Reporte corporativo

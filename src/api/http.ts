@@ -25,6 +25,7 @@ import type {
   RegistroCenso,
   RegistroCensoInput,
   Reporte,
+  ReporteRow,
   Resumen,
   Status,
 } from './types';
@@ -38,16 +39,40 @@ interface ResumenApi {
   faltantes: number;
 }
 
-function mapResumen(r: ResumenApi): Resumen {
+/** Forma exacta que hoy responde GET /coolers/resumen?rutaIni=…
+ *  Son los conteos de lo YA censado por esa ruta: tipo de registro (§5) y estado (§12.1). */
+interface CoolersResumenApi {
+  folio: number;
+  rutaIni: string | null;
+  rutaFin: string | null;
+  total: number;
+  tipoRegistro: { correcto: number; nuevo: number; correccion: number };
+  status: { usadoDisponible: number; descompuesto: number; obsoleto: number; enPiso: number };
+}
+
+/* Las claves de `status` llegan en el mismo orden que ESTADOS_ENFRIADOR (§12.1). */
+const CLAVES_ESTADO = ['usadoDisponible', 'descompuesto', 'obsoleto', 'enPiso'] as const;
+
+function mapResumen(totales: ResumenApi | null, conteos: CoolersResumenApi | null): Resumen {
+  const censados = conteos?.total ?? totales?.censados ?? 0;
+  // Sin /censos/resumen no hay universo FROG: el avance se muestra contra lo censado.
+  const totalFrog = totales?.totalFrog ?? censados;
   return {
-    totalFrog: r.totalFrog,
-    censados: r.censados,
-    pendientes: r.faltantes,
-    porcentaje: r.totalFrog ? Math.round((r.censados / r.totalFrog) * 100) : 0,
-    folio: r.folio,
-    // El backend todavía no calcula distribuciones; el Dashboard las muestra vacías.
-    porStatus: { CORRECTO: 0, 'CORRECCIÓN': 0, NUEVO: 0 },
-    porEstado: [],
+    totalFrog,
+    censados,
+    pendientes: totales?.faltantes ?? Math.max(totalFrog - censados, 0),
+    porcentaje: totalFrog ? Math.round((censados / totalFrog) * 100) : 0,
+    folio: conteos?.folio ?? totales?.folio,
+    porStatus: {
+      CORRECTO: conteos?.tipoRegistro.correcto ?? 0,
+      'CORRECCIÓN': conteos?.tipoRegistro.correccion ?? 0,
+      NUEVO: conteos?.tipoRegistro.nuevo ?? 0,
+    },
+    porEstado: ESTADOS_ENFRIADOR.map((etiqueta, i) => ({
+      etiqueta,
+      total: conteos?.status[CLAVES_ESTADO[i]] ?? 0,
+    })),
+    // El backend todavía no agrupa por CEDIS / tipo / marca; el Dashboard los muestra vacíos.
     porCedis: [],
     porTipo: [],
     porMarcaModelo: [],
@@ -155,6 +180,34 @@ function mapAlta(input: RegistroCensoInput) {
   };
 }
 
+/** tipoRegistro del backend ("CORRECCION", sin acento) → Status del dominio (§5). */
+function mapStatus(tipoRegistro: string | null): Status | '' {
+  const t = (tipoRegistro ?? '').toUpperCase();
+  return (Object.keys(STATUS_A_TIPO_REGISTRO) as Status[]).find(
+    (s) => STATUS_A_TIPO_REGISTRO[s] === t
+  ) ?? '';
+}
+
+/** Cooler (GET /coolers) → fila del reporte corporativo (§10). */
+function coolerAFila(c: Cooler): ReporteRow {
+  return {
+    cedis: c.udn ?? '',
+    ruta: c.ruta ?? '',
+    numeroCliente: c.idCliente ?? '',
+    nombreCliente: c.razonSocial ?? c.denComercial ?? '',
+    direccion: [[c.calle, c.numero].filter(Boolean).join(' '), c.colonia].filter(Boolean).join(', '),
+    numeroSerie: c.serie,
+    marca: c.marca ?? '',
+    modelo: c.modelo ?? '',
+    tipo: normalizaTipo(c.tipoEnfri),
+    status: mapStatus(c.tipoRegistro),
+    estadoEnfriador: mapEstado(c.status),
+    censado: 'SI',
+    observaciones: c.observaciones ?? '',
+    fecha: c.created,
+  };
+}
+
 /** Cooler recién creado → RegistroCenso, que es lo que consumen las pantallas. */
 function mapRegistro(c: Cooler, input: RegistroCensoInput, fotos: Foto[]): RegistroCenso {
   return {
@@ -257,14 +310,33 @@ export const httpApi: CensoApi = {
   },
 
   async getResumen(ruta?: string) {
-    // El backend solo devuelve los totales: { ruta, folio, totalFrog, censados, faltantes }.
-    // El resto del Resumen (porcentaje y distribuciones) se deriva aquí para no tocar las pantallas.
-    const r = await request<ResumenApi>(`/censos/resumen${ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''}`);
-    return mapResumen(r);
+    // Dos fuentes: /censos/resumen da el avance contra FROG, /coolers/resumen los
+    // conteos por tipo de registro y estado. Si una falla, el Dashboard muestra la otra
+    // en vez de quedarse en blanco; solo se tumba si fallan las dos.
+    const [totales, conteos] = await Promise.all([
+      request<ResumenApi>(`/censos/resumen${ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''}`).catch(
+        () => null
+      ),
+      request<CoolersResumenApi>(
+        `/coolers/resumen${ruta ? `?rutaIni=${encodeURIComponent(ruta)}` : ''}`
+      ).catch(() => null),
+    ]);
+    if (!totales && !conteos) throw new Error('No se pudieron cargar los indicadores.');
+    return mapResumen(totales, conteos);
   },
 
-  getReporte() {
-    return request<Reporte>('/censos/reporte');
+  async getReporte(): Promise<Reporte> {
+    // El backend no expone /censos/reporte (404): el reporte se arma aquí paginando
+    // /coolers, como hace el mock con construirReporte(). Sin endpoint que liste FROG
+    // por ruta no hay pendientes (§10), así que el reporte sale solo con lo censado.
+    const pageSize = 100; // tope del backend: "page size must be between 1 and 100".
+    const filas: ReporteRow[] = [];
+    for (let page = 1; page <= 50; page++) {
+      const r = await this.listCoolers({ page, pageSize });
+      filas.push(...r.items.map(coolerAFila));
+      if (!r.items.length || filas.length >= r.totalCount) break;
+    }
+    return { filas, resumen: await this.getResumen() };
   },
 
   async getCatalogos() {
