@@ -39,7 +39,7 @@ src/
     export.ts                    Exportar el reporte a CSV/PDF y compartirlo.
     format.ts                    Formato de fecha/coordenadas/porcentaje para mostrar en UI.
   ui/index.tsx               Componentes base (Card, Field, Select, Badge, StatRow, DistBars…).
-  theme.ts                   Colores, radios, sombra, helpers de color por status.
+  theme.ts                   Colores, radios, sombra, helpers de color por status y por estado.
 
 app.json                  Config de Expo: nombre, ícono, permisos de cámara/GPS, plugins.
 .env.example               Plantilla de variables de entorno (copiar a .env).
@@ -65,7 +65,7 @@ SISTEMA DE CENSO DE ENFRIADORES.md (en la demo hermana)  Fuente de verdad de las
 | 11 | `src/lib/rules.check.ts` | Todo el "test suite" del proyecto: 20+ asserts sobre `rules.ts`, sin framework. |
 | 12 | `src/lib/device.ts` | Contrato de resiliencia de hardware: nunca lanza, siempre devuelve algo usable (`mock: true` si simulado). |
 | 13 | `src/ui/index.tsx` | Todo el sistema de diseño en un archivo: Card, Field, Select, Segmented, Badge, StatRow, DistBars, etc. |
-| 14 | `src/theme.ts` | Paleta de colores y helpers (`statusColor`, `tint`) — la app está fija en modo claro. |
+| 14 | `src/theme.ts` | Paleta de colores y helpers (`statusColor`, `estadoColor`, `estadoLabel`, `tint`) — la app está fija en modo claro. Las dos nomenclaturas de color están documentadas en `04-DATOS.md`. |
 | 15 | `CLAUDE.md` | Vocabulario del dominio, las 7 reglas explicadas, cómo hacer cambios comunes. Léelo antes de tocar código de negocio. |
 
 ## Convenciones del proyecto

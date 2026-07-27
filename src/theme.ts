@@ -17,6 +17,15 @@ export const colors = {
   line: '#E3E3E8',
 } as const;
 
+/* Tipografía del título de vista. Se define aquí porque la usan tanto el <Hero>
+   de las pantallas como los headers nativos de los dos layouts. */
+export const titulo = {
+  fontSize: 34,
+  fontWeight: '800',
+  letterSpacing: -0.5,
+  color: colors.text,
+} as const;
+
 export const radius = {
   card: 16,
   control: 14,
@@ -39,11 +48,47 @@ export const shadow = {
 } as const;
 
 /* Color por status del registro — mismo criterio que statusColor() de shared.js. */
-export function statusColor(status?: string): string {
-  if (status === 'CORRECTO') return colors.green;
-  if (status === 'CORRECCIÓN') return colors.amber;
-  if (status === 'NUEVO') return colors.purple;
+export function statusColor(status?: string | null): string {
+  // El backend manda tipoRegistro sin acento ("CORRECCION"); se normaliza aquí.
+  const s = normalizar(status);
+  if (s === 'CORRECTO') return colors.green;
+  if (s === 'CORRECCION') return colors.amber;
+  if (s === 'NUEVO') return colors.purple;
   return colors.text2;
+}
+
+/* Color por estado físico del enfriador (§12.1). Es otra dimensión que el status
+   del registro, así que tiene su propia paleta: azul = operativo, rojo = falla,
+   gris = fuera de uso, ámbar = en CEDIS sin cliente. */
+export function estadoColor(estado?: string | null): string {
+  switch (normalizar(estado)) {
+    case 'USADO_DISPONIBLE':
+      return colors.blue;
+    case 'DESCOMPUESTO':
+      return colors.red;
+    case 'OBSOLETO':
+      return colors.text2;
+    case 'EN_PISO':
+      return colors.amber;
+    default:
+      return colors.text2;
+  }
+}
+
+/* "USADO_DISPONIBLE" → "Usado disponible" para la pill. */
+export function estadoLabel(estado?: string | null): string {
+  if (!estado) return '—';
+  const t = estado.replace(/_/g, ' ').toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/* Sin acentos, MAYÚSCULAS y con "_" — el backend y la app escriben distinto. */
+function normalizar(v?: string | null): string {
+  return (v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, '_');
 }
 
 /* Fondo tenue del mismo color (equivale al sufijo "22" de la demo). */

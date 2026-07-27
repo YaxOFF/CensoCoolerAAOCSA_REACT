@@ -8,12 +8,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, USE_MOCK, type Cooler } from '@/api';
 import { fmtFecha } from '@/lib/format';
-import { colors, radius, shadow, statusColor } from '@/theme';
-import { Empty, Input, KeyValues, Loading, MiniButton, Muted, Tag, ViewHead } from '@/ui';
+import { colors, estadoColor, estadoLabel, radius, shadow, statusColor } from '@/theme';
+import { Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, Tag, ViewHead } from '@/ui';
 
 const PAGE_SIZE = 20;
 
 export default function HistoryScreen() {
+  const insets = useSafeAreaInsets();
   const [serie, setSerie] = useState('');
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Cooler[]>([]);
@@ -77,11 +78,13 @@ export default function HistoryScreen() {
       <FlatList
         data={items}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        contentContainerStyle={{ padding: 16, paddingTop: insets.top + 16, paddingBottom: 32 }}
         refreshing={cargando}
         onRefresh={() => cargar(page, serie)}
         ListHeaderComponent={
           <>
+            <Hero kicker="Censo AAOCSA" title="Historial" />
+
             <View style={s.buscador}>
               <View style={{ flex: 1 }}>
                 <Input
@@ -128,7 +131,9 @@ export default function HistoryScreen() {
           ) : null
         }
         renderItem={({ item }) => {
-          const color = statusColor(item.status);
+          // El punto sigue a tipoRegistro (CORRECTO/CORRECCION/NUEVO); el campo `status`
+          // del backend es el estado físico y va en la pill, no aquí.
+          const color = statusColor(item.tipoRegistro);
           return (
             <Pressable
               onPress={() => setDetalle(item)}
@@ -145,7 +150,8 @@ export default function HistoryScreen() {
                   {item.evidencias.length ? ` · ${item.evidencias.length} foto(s)` : ''}
                 </Text>
               </View>
-              <Tag text={item.status} color={color} />
+              {/* La pill muestra el estado físico (status del backend), con su propia paleta. */}
+              <Tag text={estadoLabel(item.status)} color={estadoColor(item.status)} />
             </Pressable>
           );
         }}
@@ -166,7 +172,7 @@ function DetalleModal({ cooler, onClose }: { cooler: Cooler | null; onClose: () 
     ['Serie', cooler.serie],
     ['Folio', String(cooler.folio)],
     ['Censo', `${String(cooler.censoMes).padStart(2, '0')}/${cooler.censoAnio}`],
-    ['Status', cooler.status],
+    ['Estado', estadoLabel(cooler.status)],
     ['Tipo registro', cooler.tipoRegistro ?? '—'],
     ['Sub-status', cooler.subStatus ?? '—'],
     ['Ruta', cooler.ruta ?? '—'],

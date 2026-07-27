@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, shadow, statusColor, tint } from '../theme';
+import { colors, radius, shadow, statusColor, tint, titulo } from '../theme';
 
 /* ── Textos ───────────────────────────────────────────────────────────── */
 
@@ -434,7 +434,7 @@ export function Screen({ children, top = false }: { children: ReactNode; top?: b
 const s = StyleSheet.create({
   screen: { padding: 16, paddingBottom: 40 },
 
-  h1: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5, color: colors.text },
+  h1: titulo,
   h2: { fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 4 },
   section: {
     marginTop: 24,

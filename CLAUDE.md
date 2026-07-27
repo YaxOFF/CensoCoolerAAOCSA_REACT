@@ -37,6 +37,40 @@ Cuando una regla de negocio no quede clara, se consulta ese documento antes de i
 Los nombres de campo van **en español** (`numeroSerie`, `estadoEnfriador`, `nombreCliente`) porque
 son los que viajarán al backend. No traducirlos a inglés.
 
+### Ojo con `status` del backend
+
+`GET /coolers` usa dos campos que la app dibuja con **dos nomenclaturas de color distintas**:
+
+- `tipoRegistro` — `CORRECTO` / `CORRECCION` / `NUEVO`. Es el **status del registro** (§5).
+- `status` — `USADO_DISPONIBLE` / `DESCOMPUESTO` / `OBSOLETO` / `EN_PISO`. Es el **estado físico**
+  del enfriador (§12.1), no el status del registro. El nombre engaña; no confundirlos.
+
+## Nomenclatura de colores
+
+Dos dimensiones distintas, dos paletas. Ambas viven en `src/theme.ts` y se usan en Dashboard,
+Historial y donde haga falta — **no inventar colores nuevos en un `.tsx`**.
+
+**Status del registro** → `statusColor(tipoRegistro)`
+
+| Valor | Color |
+|---|---|
+| `CORRECTO` | verde (`colors.green`) |
+| `CORRECCIÓN` / `CORRECCION` | ámbar (`colors.amber`) |
+| `NUEVO` | morado (`colors.purple`) |
+
+**Estado del enfriador** → `estadoColor(status)` + `estadoLabel(status)` para el texto
+
+| Valor | Color | Lectura |
+|---|---|---|
+| `USADO_DISPONIBLE` | azul (`colors.blue`) | operativo |
+| `DESCOMPUESTO` | rojo (`colors.red`) | falla |
+| `OBSOLETO` | gris (`colors.text2`) | fuera de uso |
+| `EN_PISO` | ámbar (`colors.amber`) | en CEDIS, sin cliente |
+
+Ambos helpers normalizan acentos, mayúsculas y espacios vs. `_`, así que aceptan tanto la forma del
+backend (`CORRECCION`, `USADO_DISPONIBLE`) como la de la app (`CORRECCIÓN`, `Usado Disponible`).
+Valor desconocido ⇒ gris, nunca truena.
+
 ## Las 7 reglas de negocio
 
 Todas viven en **`src/lib/rules.ts`** como funciones puras, y están cubiertas por `npm run check`.

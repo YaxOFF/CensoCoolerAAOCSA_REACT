@@ -174,3 +174,21 @@ columnas del reporte) debe ser consistente con estos tipos.
   CEDIS (Norte/Sur/Centro), rutas (`R-101`…`R-310`) y marcas.
 - **Reset**: `resetDemo()` borra la clave de `AsyncStorage`; la próxima lectura vuelve a sembrar
   `SEED`. Expuesto en Historial como botón "Limpiar" (solo visible con `USE_MOCK`).
+
+## Nomenclatura de colores
+
+Dos dimensiones distintas del dato, dos paletas separadas. Los helpers viven en `src/theme.ts` —
+ninguna pantalla define colores propios para estos valores.
+
+| Dimensión | Campo del backend (`/coolers`) | Helper | Valores → color |
+|---|---|---|---|
+| Status del registro (§5) | `tipoRegistro` | `statusColor()` | `CORRECTO` → verde · `CORRECCIÓN`/`CORRECCION` → ámbar · `NUEVO` → morado |
+| Estado del enfriador (§12.1) | `status` | `estadoColor()` + `estadoLabel()` | `USADO_DISPONIBLE` → azul · `DESCOMPUESTO` → rojo · `OBSOLETO` → gris · `EN_PISO` → ámbar |
+
+**Cuidado con el nombre**: el campo `status` de `/coolers` es el estado *físico*, no el status del
+registro. Ese vive en `tipoRegistro`. En Historial el punto de la card usa `tipoRegistro` y la pill
+usa `status`.
+
+Ambos helpers normalizan acentos, mayúsculas y `espacio` vs `_`, así que aceptan tanto la forma del
+backend (`CORRECCION`, `USADO_DISPONIBLE`) como la interna (`CORRECCIÓN`, `Usado Disponible`).
+Valor desconocido o `null` ⇒ gris; nunca lanzan.
