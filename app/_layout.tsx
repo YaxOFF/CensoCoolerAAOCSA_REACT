@@ -11,6 +11,7 @@ import { RecordsProvider } from '@/store/records';
 import { SessionProvider, useSession } from '@/store/session';
 import { colors } from '@/theme';
 import { Loading } from '@/ui';
+import { BannerRed } from '@/ui/BannerRed';
 
 export default function RootLayout() {
   return (
@@ -22,6 +23,7 @@ export default function RootLayout() {
                 (sistema oscuro ⇒ iconos claros, y al revés). */}
             <StatusBar style="auto" />
             <Navegacion />
+            <BannerRed />
           </DraftProvider>
         </RecordsProvider>
       </SessionProvider>

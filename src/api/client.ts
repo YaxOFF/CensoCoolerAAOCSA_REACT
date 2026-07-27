@@ -1,6 +1,8 @@
 /* Wrapper de fetch: URL base, headers, timeout y errores uniformes.
    Es el único lugar de la app donde se llama a fetch(). */
 
+import NetInfo from '@react-native-community/netinfo';
+
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
 const TIMEOUT_MS = 15000;
@@ -34,6 +36,66 @@ interface RequestOptions {
   form?: FormData;
 }
 
+/* ── Estado de red ──────────────────────────────────────────────────────────
+   Dos fuentes, porque ninguna sola alcanza:
+
+   1. NetInfo sondea GET /health por su cuenta (cada 60s con red, cada 5s sin ella).
+      Detecta la caída aunque el inspector esté parado en una pantalla sin pedir nada.
+      Apuntado a NUESTRO /health y no al default de Google: lo que importa no es que
+      haya internet, es que el backend del censo conteste. Un wifi de CEDIS con
+      salida a internet pero sin ruta al servidor tiene que salir como "sin conexión".
+
+   2. El propio tráfico de request(): confirma la caída al instante (sin esperar al
+      siguiente sondeo) y es lo único que ve la lentitud, que NetInfo no reporta. */
+export type EstadoRed = 'ok' | 'inestable' | 'sin-conexion';
+
+/** Sobre este umbral la respuesta llegó, pero la red va arrastrando. */
+const LENTO_MS = 5000;
+
+let backendAlcanzable = true; // lo dice NetInfo (sondeo a /health)
+let ultimaRespuestaLenta = false; // lo dice el tráfico real
+const oyentes = new Set<() => void>();
+
+function estadoRed(): EstadoRed {
+  if (!backendAlcanzable) return 'sin-conexion';
+  return ultimaRespuestaLenta ? 'inestable' : 'ok';
+}
+
+let ultimoEstado = estadoRed();
+function notificar() {
+  const nuevo = estadoRed();
+  if (nuevo === ultimoEstado) return;
+  ultimoEstado = nuevo;
+  oyentes.forEach((f) => f());
+}
+
+/** Para useSyncExternalStore: getSnapshot debe devolver siempre la misma referencia
+    mientras nada cambie, por eso se lee `ultimoEstado` y no se recalcula. */
+export function suscribirRed(f: () => void) {
+  oyentes.add(f);
+  return () => oyentes.delete(f);
+}
+export function leerEstadoRed(): EstadoRed {
+  return ultimoEstado;
+}
+
+if (API_URL) {
+  NetInfo.configure({
+    reachabilityUrl: `${API_URL}/health`,
+    // 200 basta; el body ({ status: "ok" }) no aporta nada que un 200 no diga ya.
+    reachabilityTest: async (res) => res.status === 200,
+    reachabilityRequestTimeout: TIMEOUT_MS,
+  });
+
+  NetInfo.addEventListener((state) => {
+    // isInternetReachable arranca en null mientras corre el primer sondeo: no es
+    // "no hay red", es "todavía no sé". Tratarlo como caída pintaría el banner al abrir.
+    backendAlcanzable = state.isConnected !== false && state.isInternetReachable !== false;
+    if (backendAlcanzable === false) ultimaRespuestaLenta = false;
+    notificar();
+  });
+}
+
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   if (!API_URL) {
     throw new ApiError(
@@ -44,6 +106,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const t0 = Date.now();
 
   try {
     const res = await fetch(`${API_URL}${path}`, {
@@ -60,12 +123,22 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     const texto = await res.text();
     const datos = texto ? safeJson(texto) : null;
 
+    // Contestó: hay red. Solo la calidad está en duda.
+    backendAlcanzable = true;
+    ultimaRespuestaLenta = Date.now() - t0 >= LENTO_MS;
+    notificar();
+
     if (!res.ok) {
       throw new ApiError(mensajeDeError(res.status, datos), res.status, datos);
     }
     return datos as T;
   } catch (e) {
+    // Un ApiError aquí ya salió del bloque de arriba: el servidor respondió (4xx/5xx),
+    // así que la red está bien; el problema es otro.
     if (e instanceof ApiError) throw e;
+    backendAlcanzable = false;
+    ultimaRespuestaLenta = false;
+    notificar();
     if (e instanceof Error && e.name === 'AbortError') {
       throw new ApiError('El servidor no respondió a tiempo. Revisa tu conexión.', 0);
     }

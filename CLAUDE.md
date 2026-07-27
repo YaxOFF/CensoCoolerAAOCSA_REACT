@@ -111,6 +111,9 @@ desde el `.tsx`.
 | `getReporte()` | `GET /censos/reporte` |
 | `getCatalogos()` | `GET /catalogos` |
 
+Además, `GET /health` (responde `{ status: "ok" }`) es el que sondea NetInfo para el aviso de red
+— ver *Detección de red* abajo. No pasa por el contrato porque ninguna pantalla lo consume.
+
 Las evidencias cuelgan del cooler, así que solo se pueden subir **después** del alta: por eso
 `saveRegistro` hace las dos llamadas y no hay un `subirFoto` en el contrato. Si falla una evidencia
 el censo NO se tumba (ya está en el servidor; reintentar chocaría con el 409 de serie duplicada).
@@ -124,6 +127,23 @@ Si el backend no calcula agregados (`/censos/resumen`, `/censos/reporte`), se pu
 `src/lib/rules.ts` — que es justo lo que hace el mock.
 
 Para autenticación real: `setAuthToken()` de `src/api/client.ts`, llamado desde `src/store/session.tsx`.
+
+## Detección de red
+
+El banner de "sin conexión / red inestable" vive en `src/ui/BannerRed.tsx`, montado una vez en
+`app/_layout.tsx`. El estado se calcula en `src/api/client.ts` con dos fuentes:
+
+- **NetInfo** sondea `GET {API_URL}/health` solo (60s con red, 5s sin ella). Apunta a nuestro
+  backend y no al default de Google a propósito: en un CEDIS puede haber internet y aun así no
+  haber ruta al servidor del censo, y eso para el inspector es estar sin conexión.
+- **El tráfico de `request()`**: confirma la caída sin esperar al siguiente sondeo, y es lo único
+  que detecta lentitud (`> 5s` ⇒ `inestable`), que NetInfo no reporta.
+
+`@react-native-community/netinfo` va pineado a **12.0.1**, la versión que trae Expo Go SDK 57
+(`expo/bundledNativeModules.json`). Mismo motivo que los `overrides` de abajo: es un módulo nativo
+precompilado dentro del APK de Expo Go.
+
+Con `EXPO_PUBLIC_USE_MOCK=true` no dispara nada: el mock no pasa por `client.ts`.
 
 ## Cómo hacer cambios comunes
 
