@@ -26,6 +26,7 @@ import type {
   RegistroCensoInput,
   Reporte,
   Resumen,
+  Status,
 } from './types';
 
 /** Forma exacta que hoy responde GET /censos/resumen?ruta=… */
@@ -89,9 +90,8 @@ function mapFrog(row: FrogRow, serie: string): Enfriador {
     direccion,
     cedis: row.UDN ?? '',
     ruta: row.RUTA ?? '',
-    // FROG todavía no devuelve marca ni modelo: quedan abiertos para captura.
-    marca: '',
-    modelo: '',
+    marca: row.MARCA ?? '',
+    modelo: row.MODELO ?? '',
     tipo: normalizaTipo(row.TIPOENFRI),
     frog: row,
   };
@@ -106,6 +106,15 @@ const ESTADO_A_ENUM: Record<EstadoEnfriador, string> = {
   Descompuesto: 'DESCOMPUESTO',
   Obsoleto: 'OBSOLETO',
   'En Piso': 'EN PISO',
+};
+
+/* §5 — el status del censo va como `tipoRegistro` (enum CoolerTipoRegistro del backend).
+   Ojo: allá "CORRECCION" va SIN acento y el dominio sí lo lleva, así que el mapeo es
+   obligatorio; mandar 'CORRECCIÓN' tal cual responde 400. */
+const STATUS_A_TIPO_REGISTRO: Record<Status, string> = {
+  CORRECTO: 'CORRECTO',
+  'CORRECCIÓN': 'CORRECCION',
+  NUEVO: 'NUEVO',
 };
 
 /** El enum de vuelta ("USADO_DISPONIBLE") al estado del dominio ("Usado Disponible"). */
@@ -136,6 +145,9 @@ function mapAlta(input: RegistroCensoInput) {
     razonSocial: input.nombreCliente,
     calle: input.direccion,
     tipoEnfri: input.tipo,
+    marca: input.marca || null,
+    modelo: input.modelo || null,
+    tipoRegistro: STATUS_A_TIPO_REGISTRO[input.status],
     observaciones: input.observaciones,
     latitud: input.lat,
     longitud: input.lng,

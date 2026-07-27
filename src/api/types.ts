@@ -40,6 +40,8 @@ export interface FrogRow {
   TIPOENFRI?: string | null;
   ANIO?: string | null;
   SUBSTATUS?: string | null;
+  MARCA?: string | null;
+  MODELO?: string | null;
 }
 
 /** Lo que devuelve FROG al consultar un número de serie (§4 del spec). */
@@ -181,8 +183,12 @@ export interface Cooler {
   frec: string | null;
   descripcion: string | null;
   tipoEnfri: string | null;
+  marca: string | null;
+  modelo: string | null;
   anio: string | null;
   subStatus: string | null;
+  /** §5 — el status del censo serializado por el backend: CORRECTO / CORRECCION / NUEVO. */
+  tipoRegistro: string | null;
   observaciones: string | null;
   latitud: number | null;
   longitud: number | null;

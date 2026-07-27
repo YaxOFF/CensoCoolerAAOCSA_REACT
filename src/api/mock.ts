@@ -127,8 +127,12 @@ function aCooler(r: RegistroCenso, i: number): Cooler {
     frec: null,
     descripcion: `${r.marca} ${r.modelo}`,
     tipoEnfri: r.tipo,
+    marca: r.marca,
+    modelo: r.modelo,
     anio: null,
     subStatus: r.estadoEnfriador,
+    // Con acento: es el valor del dominio, el mock no serializa al enum del backend.
+    tipoRegistro: r.status,
     observaciones: r.observaciones || null,
     latitud: r.lat,
     longitud: r.lng,
