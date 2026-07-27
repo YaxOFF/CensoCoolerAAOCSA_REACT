@@ -151,6 +151,17 @@ export interface Reporte {
   resumen: Resumen;
 }
 
+/** Respuesta de POST /reportes/coolers[/excel]: el archivo se queda en el servidor
+ *  y lo que vuelve es la URL de descarga (pública, vive REPORTES_RETENCION_DIAS). */
+export interface ReporteArchivo {
+  url: string;
+  folio: number;
+  total: number;
+  censados: number;
+  noCensados: number;
+  generado: string;
+}
+
 /* ── GET /coolers ─────────────────────────────────────────────────────────
    El backend expone los censos ya levantados con SUS nombres de campo y
    paginados. Es una vista distinta a RegistroCenso (más campos del cliente,

@@ -188,6 +188,21 @@ export const mockApi: CensoApi = {
     return construirReporte(await leer(), FROG, CATALOGOS);
   },
 
+  async generarReporte(formato: 'pdf' | 'excel', _ruta: string) {
+    // ponytail: el mock no genera archivos; devuelve una URL de ejemplo para que la
+    // pantalla (abrir / compartir / QR) se pueda probar sin backend.
+    await delay();
+    const { resumen } = construirReporte(await leer(), FROG, CATALOGOS);
+    return {
+      url: `https://example.com/reportes/censo-demo.${formato === 'excel' ? 'xlsx' : 'pdf'}`,
+      folio: resumen.folio ?? 1,
+      total: resumen.totalFrog,
+      censados: resumen.censados,
+      noCensados: resumen.pendientes,
+      generado: new Date().toISOString(),
+    };
+  },
+
   async getCatalogos() {
     return CATALOGOS;
   },

@@ -25,6 +25,7 @@ import type {
   RegistroCenso,
   RegistroCensoInput,
   Reporte,
+  ReporteArchivo,
   ReporteRow,
   Resumen,
   Status,
@@ -337,6 +338,20 @@ export const httpApi: CensoApi = {
       if (!r.items.length || filas.length >= r.totalCount) break;
     }
     return { filas, resumen: await this.getResumen() };
+  },
+
+  async generarReporte(formato, ruta): Promise<ReporteArchivo> {
+    // El rango de UDN va abierto (00–99): quien acota es la ruta del inspector.
+    // Sin `folio` el backend usa la ronda de censo vigente.
+    const r = await request<ReporteArchivo>(
+      `/reportes/coolers${formato === 'excel' ? '/excel' : ''}`,
+      {
+        method: 'POST',
+        body: { udnIni: '00', udnFin: '99', rutaIni: ruta, rutaFin: ruta, folio: null },
+      }
+    );
+    // La URL la emite el mismo Nginx de las fotos: mismo reapuntado de host.
+    return { ...r, url: hostDeImagenes(r.url) };
   },
 
   async getCatalogos() {

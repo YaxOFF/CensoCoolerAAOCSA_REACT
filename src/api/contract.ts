@@ -12,6 +12,7 @@ import type {
   RegistroCenso,
   RegistroCensoInput,
   Reporte,
+  ReporteArchivo,
   Resumen,
 } from './types';
 
@@ -41,6 +42,11 @@ export interface CensoApi {
   /** Reporte corporativo: censados + pendientes de FROG (§10).
    *  Endpoint: GET /censos/reporte */
   getReporte(): Promise<Reporte>;
+
+  /** Genera el reporte EN EL SERVIDOR (cruce FROG vs. censado) y devuelve la URL
+   *  de descarga, no el binario. La ruta del inspector acota el rango.
+   *  Endpoints: POST /reportes/coolers (PDF) | POST /reportes/coolers/excel (.xlsx) */
+  generarReporte(formato: 'pdf' | 'excel', ruta: string): Promise<ReporteArchivo>;
 
   /** Catálogos de tipos, estados, CEDIS y rutas.
    *  Endpoint: GET /catalogos */

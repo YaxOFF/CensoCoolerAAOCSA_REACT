@@ -115,7 +115,7 @@ src/
     client.ts            Wrapper de fetch: URL base, headers, timeout, errores
     index.ts             `api` = mock o http según EXPO_PUBLIC_USE_MOCK
   store/                 Context providers: session, records, draft, catalogos, resumen
-  lib/                   rules.ts (negocio), device.ts (GPS/cámara), export.ts, format.ts
+  lib/                   rules.ts (negocio), device.ts (GPS/cámara), format.ts
   ui/index.tsx           Componentes base (Card, Field, Select, Badge, StatRow, DistBars…)
   theme.ts               Colores, radios y sombra
 ```
@@ -144,6 +144,7 @@ desde el `.tsx`.
 | `getResumen()` | `GET /censos/resumen` |
 | `getReporte()` | `GET /censos/reporte` |
 | `getCatalogos()` | `GET /catalogos` |
+| `generarReporte(formato, ruta)` | `POST /reportes/coolers` (PDF) y `/reportes/coolers/excel` — body `{udnIni:"00",udnFin:"99",rutaIni,rutaFin,folio:null}`; responde la **URL** del archivo, no el binario |
 
 Además, `GET /health` (responde `{ status: "ok" }`) es el que sondea NetInfo para el aviso de red
 — ver *Detección de red* abajo. No pasa por el contrato porque ninguna pantalla lo consume.
