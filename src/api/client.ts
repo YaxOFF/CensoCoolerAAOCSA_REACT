@@ -11,6 +11,11 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+/** Para las subidas de archivos, que no pasan por request() sino por expo-file-system. */
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -79,9 +84,24 @@ function safeJson(texto: string): unknown {
 }
 
 function mensajeDeError(status: number, body: unknown): string {
+  // El backend responde RFC 7807 ({ type, title, status }), donde el mensaje útil
+  // ("Cooler con serie 'X' ya existe…") viaja en `title` o `detail`, no en `message`.
+  const b = body as Record<string, unknown> | null;
+
+  // Los 400 de validación traen el detalle campo por campo en `errors`; el `title`
+  // genérico ("One or more validation errors occurred.") no le sirve a nadie.
+  const errores = b?.errors;
+  if (errores && typeof errores === 'object') {
+    const detalle = Object.values(errores as Record<string, string[]>)
+      .flat()
+      .join(' ');
+    if (detalle) return detalle;
+  }
+
   const delServidor =
-    body && typeof body === 'object' && 'message' in body ? String((body as any).message) : null;
-  if (delServidor) return delServidor;
+    b && typeof b === 'object' ? b.detail ?? b.message ?? b.title : null;
+  if (delServidor) return String(delServidor);
+  // 401/403 salen con body vacío: el mensaje lo pone la app.
   if (status === 401 || status === 403) return 'Sesión no válida. Vuelve a ingresar tu ruta.';
   if (status === 404) return 'Recurso no encontrado.';
   if (status >= 500) return 'Error del servidor. Intenta de nuevo en unos minutos.';

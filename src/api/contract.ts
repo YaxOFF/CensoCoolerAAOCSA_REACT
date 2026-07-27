@@ -13,12 +13,11 @@ import type {
   RegistroCensoInput,
   Reporte,
   Resumen,
-  TipoFoto,
 } from './types';
 
 export interface CensoApi {
   /** Consulta FROG por número de serie. null => la serie no existe => status NUEVO.
-   *  Endpoint: GET /enfriadores/:numeroSerie  (404 => null) */
+   *  Endpoint: GET /frog/enfriadores/:numeroSerie  (404 o array vacío => null) */
   lookupEnfriador(numeroSerie: string): Promise<Enfriador | null>;
 
   /** Censos ya levantados, para Historial.
@@ -29,8 +28,10 @@ export interface CensoApi {
    *  Endpoint: GET /coolers?page=1&pageSize=20&serie=ABC */
   listCoolers(q?: CoolersQuery): Promise<CoolersPage>;
 
-  /** Guarda un censo. Reemplaza si ya existe esa serie (§8: Censado = SI).
-   *  Endpoint: POST /censos */
+  /** Guarda un censo y sus evidencias. Reemplaza si ya existe esa serie (§8: Censado = SI).
+   *  Endpoints: POST /coolers  y luego POST /coolers/:id/evidencias por cada foto.
+   *  Las evidencias cuelgan del cooler, así que solo se pueden subir DESPUÉS del alta:
+   *  por eso la subida vive aquí y no en un método aparte. */
   saveRegistro(input: RegistroCensoInput): Promise<RegistroCenso>;
 
   /** Indicadores del Dashboard (§9). El backend los calcula por ruta del inspector.
@@ -40,10 +41,6 @@ export interface CensoApi {
   /** Reporte corporativo: censados + pendientes de FROG (§10).
    *  Endpoint: GET /censos/reporte */
   getReporte(): Promise<Reporte>;
-
-  /** Sube una evidencia fotográfica y devuelve su id/URL definitiva.
-   *  Endpoint: POST /censos/fotos  (multipart/form-data) */
-  subirFoto(uri: string, tipo: TipoFoto): Promise<{ id: string; uri: string }>;
 
   /** Catálogos de tipos, estados, CEDIS y rutas.
    *  Endpoint: GET /catalogos */

@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { construirReporte, construirResumen, upsertRegistro } from '../lib/rules';
 import type { CensoApi } from './contract';
+import { ESTADOS_ENFRIADOR } from './types';
 import type {
   Catalogos,
   Cooler,
@@ -16,7 +17,6 @@ import type {
   EstadoEnfriador,
   RegistroCenso,
   RegistroCensoInput,
-  TipoFoto,
 } from './types';
 
 const KEY = 'censo_registros_v1';
@@ -26,7 +26,7 @@ const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
 export const CATALOGOS: Catalogos = {
   tipos: ['AAOCSA', 'PEÑAFIEL', 'BONAFONT'],
-  estadosEnfriador: ['Usado Disponible', 'Descompuesto', 'Obsoleto', 'En Piso'],
+  estadosEnfriador: [...ESTADOS_ENFRIADOR],
   cedis: ['CEDIS Norte', 'CEDIS Sur', 'CEDIS Centro'],
   rutas: ['R-101', 'R-102', 'R-205', 'R-310'],
   marcas: ['Imbera', 'Metalfrio', 'Ojeda', 'Criotec'],
@@ -182,12 +182,6 @@ export const mockApi: CensoApi = {
   async getReporte() {
     await delay();
     return construirReporte(await leer(), FROG, CATALOGOS);
-  },
-
-  async subirFoto(uri: string, tipo: TipoFoto) {
-    await delay(150);
-    // Sin backend la foto se queda en el dispositivo; solo se le inventa un id.
-    return { id: `mock-${tipo}-${uri.slice(-8)}`, uri };
   },
 
   async getCatalogos() {

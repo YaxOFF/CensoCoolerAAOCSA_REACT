@@ -11,7 +11,6 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { api } from '@/api';
 import type { EstadoEnfriador, Foto, Gps, TipoFoto } from '@/api/types';
 import { esFotoMock, obtenerGps, tomarFoto } from '@/lib/device';
 import { fmtCoord } from '@/lib/format';
@@ -108,15 +107,6 @@ export default function FormScreen() {
       // §12.3: si el usuario no capturó ubicación, se obtiene automáticamente al guardar.
       const ubicacion = gps ?? (await obtenerGps(registros.length));
 
-      // Las fotos simuladas no se suben: no hay archivo real detrás.
-      const fotosSubidas = await Promise.all(
-        fotos.map(async (f) => {
-          if (esFotoMock(f.uri)) return f;
-          const { id, uri } = await api.subirFoto(f.uri, f.tipo);
-          return { ...f, id, uri };
-        })
-      );
-
       const rec = await guardar({
         numeroSerie: draft.numeroSerie,
         numeroCliente: draft.numeroCliente,
@@ -134,7 +124,9 @@ export default function FormScreen() {
         lng: ubicacion.lng,
         fecha: new Date().toISOString(),
         usuario,
-        fotos: fotosSubidas,
+        // La subida de las evidencias la hace la capa api: cuelgan del censo ya creado.
+        fotos,
+        frog: draft.frog,
       });
 
       setUltimo(rec);

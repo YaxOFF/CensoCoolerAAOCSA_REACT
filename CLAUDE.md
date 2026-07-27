@@ -103,13 +103,17 @@ desde el `.tsx`.
 
 | Método del contrato | Endpoint |
 |---|---|
-| `lookupEnfriador(serie)` | `GET /enfriadores/:serie` — 404 ⇒ `null` ⇒ status NUEVO |
+| `lookupEnfriador(serie)` | `GET /frog/enfriadores/:serie` — array; vacío o 404 ⇒ `null` ⇒ status NUEVO |
 | `listRegistros()` | `GET /censos` |
-| `saveRegistro(input)` | `POST /censos` |
+| `listCoolers(q)` | `GET /coolers?page&pageSize&serie` |
+| `saveRegistro(input)` | `POST /coolers` y luego `POST /coolers/:id/evidencias` por foto (multipart) |
 | `getResumen()` | `GET /censos/resumen` |
 | `getReporte()` | `GET /censos/reporte` |
-| `subirFoto(uri, tipo)` | `POST /censos/fotos` (multipart) |
 | `getCatalogos()` | `GET /catalogos` |
+
+Las evidencias cuelgan del cooler, así que solo se pueden subir **después** del alta: por eso
+`saveRegistro` hace las dos llamadas y no hay un `subirFoto` en el contrato. Si falla una evidencia
+el censo NO se tumba (ya está en el servidor; reintentar chocaría con el 409 de serie duplicada).
 
 **Si el backend responde con otra forma** (otros nombres de campo, envoltorio `{ data: … }`, fechas
 en otro formato): se agrega una función de mapeo **dentro de `http.ts`**, en el método que

@@ -4,9 +4,43 @@
 
 export type Status = 'CORRECTO' | 'CORRECCIÓN' | 'NUEVO';
 
-export type EstadoEnfriador = 'Usado Disponible' | 'Descompuesto' | 'Obsoleto' | 'En Piso';
+/* Los estados del enfriador (§12.1) NO son un catálogo del servidor: son el enum del
+   dominio, y su orden es el int que espera POST /coolers (0..3). Fuente única. */
+export const ESTADOS_ENFRIADOR = [
+  'Usado Disponible',
+  'Descompuesto',
+  'Obsoleto',
+  'En Piso',
+] as const;
+
+export type EstadoEnfriador = (typeof ESTADOS_ENFRIADOR)[number];
+
+/** Tipos de enfriador. FROG los devuelve en TIPOENFRI con estas mismas claves. */
+export const TIPOS_ENFRIADOR = ['AAOCSA', 'PEÑAFI', 'BONAFO', 'DANONE'] as const;
 
 export type Censado = 'SI' | 'NO';
+
+/** Fila cruda de GET /frog/enfriadores/:serie, con los nombres del backend.
+    Se arrastra sin tocar para devolverla intacta en el POST /coolers: trae campos
+    (comodato, contrato, frec, anio…) que el modelo de dominio no modela. */
+export interface FrogRow {
+  COMODATO?: string | null;
+  CONTRATO?: string | null;
+  UDN?: string | null;
+  RUTA?: string | null;
+  IDCLIENTE?: string | null;
+  RAZONSOCIAL?: string | null;
+  DENCOMERCIAL?: string | null;
+  CALLE?: string | null;
+  NUMERO?: string | null;
+  COLONIA?: string | null;
+  FREC?: string | null;
+  SERIE?: string | null;
+  DESCRIPCION?: string | null;
+  TIPOENFRI?: string | null;
+  ANIO?: string | null;
+  SUBSTATUS?: string | null;
+}
 
 /** Lo que devuelve FROG al consultar un número de serie (§4 del spec). */
 export interface Enfriador {
@@ -19,6 +53,8 @@ export interface Enfriador {
   marca: string;
   modelo: string;
   tipo: string;
+  /** Solo con backend real: la fila original de FROG. Ausente en el mock. */
+  frog?: FrogRow;
 }
 
 /** Las 3 evidencias fotográficas obligatorias (§7). */
@@ -26,10 +62,12 @@ export type TipoFoto = 'Frontal' | 'Placa' | 'Fachada';
 
 export interface Foto {
   tipo: TipoFoto;
-  /** URI local mientras no se sube; URL remota después de api.subirFoto(). */
+  /** URI local mientras no se sube; URL remota después de que saveRegistro la suba. */
   uri: string;
   /** Id que devuelve el backend al subirla. Vacío = todavía no subida. */
   id?: string;
+  /** Pie de la evidencia. Sin valor se manda el tipo. */
+  pie?: string;
 }
 
 /** Un censo levantado en campo. La llave es numeroSerie. */

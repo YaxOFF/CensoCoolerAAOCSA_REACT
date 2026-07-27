@@ -7,18 +7,25 @@
    fechas en otro formato), AQUÍ es donde se adapta — con una función de mapeo por método.
    Nunca en las pantallas. */
 
-import { ApiError, request } from './client';
+import { FileSystemUploadType, uploadAsync } from 'expo-file-system/legacy';
+
+import { esFotoMock } from '../lib/device';
+import { API_URL, ApiError, getAuthToken, request } from './client';
 import type { CensoApi } from './contract';
+import { ESTADOS_ENFRIADOR, TIPOS_ENFRIADOR } from './types';
 import type {
   Catalogos,
+  Cooler,
   CoolersPage,
   CoolersQuery,
   Enfriador,
+  EstadoEnfriador,
+  Foto,
+  FrogRow,
   RegistroCenso,
   RegistroCensoInput,
   Reporte,
   Resumen,
-  TipoFoto,
 } from './types';
 
 /** Forma exacta que hoy responde GET /censos/resumen?ruta=… */
@@ -56,10 +63,140 @@ function hostDeImagenes(url: string): string {
   return IMG_URL ? url.replace(/^https?:\/\/[^/]+/, IMG_URL) : url;
 }
 
+/* ── FROG → Enfriador ──────────────────────────────────────────────────────
+   GET /frog/enfriadores/:serie responde un ARRAY de filas en MAYÚSCULAS. */
+
+/* FROG manda TIPOENFRI en mayúsculas y a veces con espacios o sin acento
+   ("PENAFI ", "peñafi"). Sin normalizar no empata con la opción del catálogo y el
+   Select aparece vacío. Se compara sin acentos ni espacios y se devuelve la clave
+   del catálogo; si no empata con ninguna, se conserva el valor tal cual llegó. */
+function normalizaTipo(tipo: string | null | undefined): string {
+  const limpio = (tipo ?? '').trim();
+  if (!limpio) return '';
+  const plano = (s: string) =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toUpperCase();
+  return TIPOS_ENFRIADOR.find((t) => plano(t) === plano(limpio)) ?? limpio.toUpperCase();
+}
+
+function mapFrog(row: FrogRow, serie: string): Enfriador {
+  const direccion = [[row.CALLE, row.NUMERO].filter(Boolean).join(' '), row.COLONIA]
+    .filter(Boolean)
+    .join(', ');
+  return {
+    numeroSerie: row.SERIE?.trim() || serie,
+    numeroCliente: row.IDCLIENTE ?? '',
+    nombreCliente: row.RAZONSOCIAL ?? '',
+    direccion,
+    cedis: row.UDN ?? '',
+    ruta: row.RUTA ?? '',
+    // FROG todavía no devuelve marca ni modelo: quedan abiertos para captura.
+    marca: '',
+    modelo: '',
+    tipo: normalizaTipo(row.TIPOENFRI),
+    frog: row,
+  };
+}
+
+/* ── Censo → POST /coolers ─────────────────────────────────────────────────
+   `status` es un enum CERRADO de strings: mandar otra cosa da 400.
+   Ojo con "EN PISO": va con espacio, no con guion bajo. */
+
+const ESTADO_A_ENUM: Record<EstadoEnfriador, string> = {
+  'Usado Disponible': 'USADO_DISPONIBLE',
+  Descompuesto: 'DESCOMPUESTO',
+  Obsoleto: 'OBSOLETO',
+  'En Piso': 'EN PISO',
+};
+
+/** El enum de vuelta ("USADO_DISPONIBLE") al estado del dominio ("Usado Disponible"). */
+function mapEstado(status: string): EstadoEnfriador {
+  const normalizado = status.replace(/_/g, ' ').toUpperCase();
+  const estados = Object.keys(ESTADO_A_ENUM) as EstadoEnfriador[];
+  return estados.find((e) => e.toUpperCase() === normalizado) ?? 'Usado Disponible';
+}
+
+/** Cuerpo del POST: la fila de FROG como base, pisada por lo que editó el inspector. */
+function mapAlta(input: RegistroCensoInput) {
+  const frog = input.frog ?? {};
+  return {
+    comodato: frog.COMODATO ?? null,
+    contrato: frog.CONTRATO ?? null,
+    denComercial: frog.DENCOMERCIAL ?? null,
+    numero: frog.NUMERO ?? null,
+    colonia: frog.COLONIA ?? null,
+    frec: frog.FREC ?? null,
+    descripcion: frog.DESCRIPCION ?? [input.marca, input.modelo].filter(Boolean).join(' '),
+    anio: frog.ANIO ?? null,
+    subStatus: frog.SUBSTATUS ?? null,
+    // Lo capturado en el formulario manda sobre FROG.
+    serie: input.numeroSerie,
+    udn: input.cedis,
+    ruta: input.ruta,
+    idCliente: input.numeroCliente,
+    razonSocial: input.nombreCliente,
+    calle: input.direccion,
+    tipoEnfri: input.tipo,
+    observaciones: input.observaciones,
+    latitud: input.lat,
+    longitud: input.lng,
+    status: ESTADO_A_ENUM[input.estadoEnfriador],
+  };
+}
+
+/** Cooler recién creado → RegistroCenso, que es lo que consumen las pantallas. */
+function mapRegistro(c: Cooler, input: RegistroCensoInput, fotos: Foto[]): RegistroCenso {
+  return {
+    ...input,
+    numeroSerie: c.serie,
+    estadoEnfriador: mapEstado(c.status),
+    lat: c.latitud ?? input.lat,
+    lng: c.longitud ?? input.lng,
+    fecha: c.created ?? input.fecha,
+    censado: 'SI',
+    fotos,
+  };
+}
+
+/* POST /coolers/:id/evidencias — multipart con la foto y su pie.
+
+   No usa fetch + FormData: en Android eso falla con "Network request failed" al
+   adjuntar un file:// del ImagePicker. uploadAsync arma el multipart en nativo,
+   leyendo el archivo del disco, que es justo el caso de uso. El servidor
+   re-codifica a JPEG ≤1600px, así que no hace falta comprimir aquí. */
+async function subirEvidencia(coolerId: string, foto: Foto): Promise<Foto> {
+  const token = getAuthToken();
+  const res = await uploadAsync(
+    `${API_URL}/coolers/${encodeURIComponent(coolerId)}/evidencias`,
+    foto.uri,
+    {
+      httpMethod: 'POST',
+      uploadType: FileSystemUploadType.MULTIPART,
+      fieldName: 'file',
+      mimeType: 'image/jpeg',
+      parameters: { pie: foto.pie ?? foto.tipo },
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  const cuerpo = res.body ? JSON.parse(res.body) : null;
+  if (res.status < 200 || res.status >= 300) {
+    throw new ApiError(cuerpo?.title ?? `Error ${res.status} al subir la evidencia.`, res.status, cuerpo);
+  }
+  // §Convenciones: la url viene ya armada con FILES_BASE_URL; solo se reapunta el host
+  // cuando el teléfono no alcanza el del servidor (EXPO_PUBLIC_IMG_URL).
+  return { ...foto, id: cuerpo.id, uri: hostDeImagenes(cuerpo.url) };
+}
+
 export const httpApi: CensoApi = {
   async lookupEnfriador(numeroSerie) {
+    const serie = numeroSerie.trim().toUpperCase();
     try {
-      return await request<Enfriador>(`/enfriadores/${encodeURIComponent(numeroSerie.trim().toUpperCase())}`);
+      const filas = await request<FrogRow[]>(`/frog/enfriadores/${encodeURIComponent(serie)}`);
+      // Puede venir más de una fila por serie; se toma la primera (§4).
+      return filas?.length ? mapFrog(filas[0], serie) : null;
     } catch (e) {
       // 404 no es un error de la app: significa serie inexistente => status NUEVO (§5).
       if (e instanceof ApiError && e.status === 404) return null;
@@ -84,8 +221,27 @@ export const httpApi: CensoApi = {
     };
   },
 
-  saveRegistro(input: RegistroCensoInput) {
-    return request<RegistroCenso>('/censos', { method: 'POST', body: input });
+  async saveRegistro(input: RegistroCensoInput) {
+    const cooler = await request<Cooler>('/coolers', { method: 'POST', body: mapAlta(input) });
+
+    // Las evidencias cuelgan del cooler, así que se suben ya con su id.
+    // Las fotos simuladas no se suben: no hay archivo real detrás.
+    const fotos = await Promise.all(
+      input.fotos.map(async (f) => {
+        if (esFotoMock(f.uri) || !f.uri) return f;
+        try {
+          return await subirEvidencia(cooler.id, f);
+        } catch (e) {
+          // ponytail: el censo YA quedó guardado en el servidor; tumbarlo por una foto
+          // haría que el inspector reintentara y chocara con el 409 de serie duplicada.
+          // Se conserva la uri local. Si hace falta reintentar, va una cola en src/api/.
+          console.warn(`No se pudo subir la evidencia ${f.tipo}:`, e);
+          return f;
+        }
+      })
+    );
+
+    return mapRegistro(cooler, input, fotos);
   },
 
   async getResumen(ruta?: string) {
@@ -99,19 +255,21 @@ export const httpApi: CensoApi = {
     return request<Reporte>('/censos/reporte');
   },
 
-  subirFoto(uri: string, tipo: TipoFoto) {
-    const form = new FormData();
-    form.append('tipo', tipo);
-    form.append('archivo', {
-      uri,
-      name: `${tipo.toLowerCase()}.jpg`,
-      type: 'image/jpeg',
-    } as any); // RN acepta este objeto como parte de un FormData multipart.
-    return request<{ id: string; uri: string }>('/censos/fotos', { method: 'POST', form });
-  },
-
-  getCatalogos() {
-    return request<Catalogos>('/catalogos');
+  async getCatalogos() {
+    // El backend todavía no expone /catalogos. Los estados del enfriador no pueden
+    // faltar: sin ellos no hay Select y el censo no se puede guardar (§12.1).
+    const base: Catalogos = {
+      tipos: [...TIPOS_ENFRIADOR],
+      estadosEnfriador: [...ESTADOS_ENFRIADOR],
+      cedis: [],
+      rutas: [],
+      marcas: [],
+    };
+    try {
+      return { ...base, ...(await request<Partial<Catalogos>>('/catalogos')) };
+    } catch {
+      return base;
+    }
   },
 
   async resetDemo() {
