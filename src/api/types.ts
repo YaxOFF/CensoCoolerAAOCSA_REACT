@@ -220,6 +220,8 @@ export interface CoolersQuery {
   pageSize?: number;
   /** Filtro por número de serie (coincidencia parcial). */
   serie?: string;
+  /** Ruta del inspector. Coincidencia exacta: la ruta es un código. */
+  ruta?: string;
 }
 
 /** Catálogos del sistema (§4 y §7). Hoy constantes; mañana un endpoint. */

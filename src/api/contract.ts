@@ -9,6 +9,7 @@ import type {
   CoolersPage,
   CoolersQuery,
   Enfriador,
+  FrogRow,
   RegistroCenso,
   RegistroCensoInput,
   Reporte,
@@ -25,9 +26,17 @@ export interface CensoApi {
    *  Endpoint: GET /censos */
   listRegistros(): Promise<RegistroCenso[]>;
 
-  /** Censos levantados, paginados y filtrables por serie. Es lo que consume Historial.
-   *  Endpoint: GET /coolers?page=1&pageSize=20&serie=ABC */
+  /** Censos levantados, paginados y filtrables por serie y ruta. Lo consume Historial.
+   *  Endpoint: GET /coolers?page=1&pageSize=20&serie=ABC&ruta=02110101 */
   listCoolers(q?: CoolersQuery): Promise<CoolersPage>;
+
+  /** Padrón completo de FROG para una ruta. No pagina: son decenas de filas.
+   *  Endpoint: POST /frog/enfriadores  body { udnIni:"00", udnFin:"99", rutaIni, rutaFin } */
+  listFrog(ruta: string): Promise<FrogRow[]>;
+
+  /** Equipos de FROG que esa ruta todavía no censa (§10), solo `items`.
+   *  Endpoint: GET /coolers/faltantes?rutaIni=…&rutaFin=… */
+  listFaltantes(ruta: string): Promise<FrogRow[]>;
 
   /** Guarda un censo y sus evidencias. Reemplaza si ya existe esa serie (§8: Censado = SI).
    *  Endpoints: POST /coolers  y luego POST /coolers/:id/evidencias por cada foto.

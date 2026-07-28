@@ -15,6 +15,7 @@ import type {
   CoolersQuery,
   Enfriador,
   EstadoEnfriador,
+  FrogRow,
   RegistroCenso,
   RegistroCensoInput,
 } from './types';
@@ -147,6 +148,30 @@ function aCooler(r: RegistroCenso, i: number): Cooler {
   };
 }
 
+/** El FROG simulado visto con la forma cruda (MAYÚSCULAS) que devuelve el backend. */
+function aFrogRow(f: Enfriador): FrogRow {
+  return {
+    COMODATO: null,
+    CONTRATO: null,
+    UDN: null,
+    RUTA: f.ruta,
+    IDCLIENTE: f.numeroCliente,
+    RAZONSOCIAL: f.nombreCliente,
+    DENCOMERCIAL: f.nombreCliente,
+    CALLE: f.direccion,
+    NUMERO: null,
+    COLONIA: null,
+    FREC: null,
+    SERIE: f.numeroSerie,
+    DESCRIPCION: `${f.marca} ${f.modelo}`,
+    TIPOENFRI: f.tipo,
+    ANIO: null,
+    SUBSTATUS: null,
+    MARCA: f.marca,
+    MODELO: f.modelo,
+  };
+}
+
 export const mockApi: CensoApi = {
   async lookupEnfriador(numeroSerie) {
     await delay();
@@ -160,6 +185,8 @@ export const mockApi: CensoApi = {
   },
 
   async listCoolers({ page = 1, pageSize = 20, serie }: CoolersQuery = {}) {
+    // La ruta se ignora, igual que en getResumen: el FROG simulado es uno solo y
+    // filtrar por la ruta capturada en el login dejaría el Historial vacío.
     await delay();
     const filtro = serie?.trim().toUpperCase();
     const todos = (await leer())
@@ -168,6 +195,17 @@ export const mockApi: CensoApi = {
       .filter((c) => !filtro || c.serie.toUpperCase().includes(filtro));
     const desde = (page - 1) * pageSize;
     return { items: todos.slice(desde, desde + pageSize), page, pageSize, totalCount: todos.length };
+  },
+
+  async listFrog(_ruta: string) {
+    await delay();
+    return FROG.map(aFrogRow);
+  },
+
+  async listFaltantes(_ruta: string) {
+    await delay();
+    const censadas = new Set((await leer()).map((r) => r.numeroSerie));
+    return FROG.filter((f) => !censadas.has(f.numeroSerie)).map(aFrogRow);
   },
 
   async saveRegistro(input: RegistroCensoInput) {

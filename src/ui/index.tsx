@@ -8,6 +8,7 @@ import { ComponentProps, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -310,15 +311,22 @@ export function Tag({ text, color }: { text: string; color: string }) {
 export function StatRow({
   items,
 }: {
-  items: { valor: string | number; etiqueta: string; color?: string }[];
+  items: { valor: string | number; etiqueta: string; color?: string; onPress?: () => void }[];
 }) {
   return (
     <View style={s.statRow}>
       {items.map((it) => (
-        <View key={it.etiqueta} style={s.stat}>
+        // Sin onPress se queda como View: las tarjetas que no llevan a ningún lado
+        // no deben dar feedback táctil.
+        <Pressable
+          key={it.etiqueta}
+          onPress={it.onPress}
+          disabled={!it.onPress}
+          style={({ pressed }) => [s.stat, pressed && it.onPress ? { opacity: 0.7 } : null]}
+        >
           <Text style={[s.statValue, it.color ? { color: it.color } : null]}>{it.valor}</Text>
           <Text style={s.statLabel}>{it.etiqueta}</Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -407,12 +415,28 @@ export function Loading({ text = 'Cargando…' }: { text?: string }) {
 /** Contenedor con scroll y el padding estándar de las pantallas.
     Con edge-to-edge en Android el contenido corre por debajo de la barra de
     estado y de la de gestos: se suman los insets al padding.
-    `top` solo en pantallas sin header (el header ya reserva ese espacio). */
-export function Screen({ children, top = false }: { children: ReactNode; top?: boolean }) {
+    `top` solo en pantallas sin header (el header ya reserva ese espacio).
+    Con `onRefresh` habilita el jalar-para-recargar, como el FlatList del Historial. */
+export function Screen({
+  children,
+  top = false,
+  refreshing = false,
+  onRefresh,
+}: {
+  children: ReactNode;
+  top?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   return (
     <ScrollView
       style={{ backgroundColor: colors.bg }}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.blue} />
+        ) : undefined
+      }
       contentContainerStyle={[
         s.screen,
         {

@@ -55,7 +55,10 @@ interface CoolersResumenApi {
 const CLAVES_ESTADO = ['usadoDisponible', 'descompuesto', 'obsoleto', 'enPiso'] as const;
 
 function mapResumen(totales: ResumenApi | null, conteos: CoolersResumenApi | null): Resumen {
-  const censados = conteos?.total ?? totales?.censados ?? 0;
+  // /censos/resumen manda: cuenta el padrón de FROG censado por esa ruta. El `total` de
+  // /coolers/resumen incluye los NUEVO (equipos que no estaban en FROG), así que inflaría
+  // el avance; solo sirve de respaldo si /censos/resumen falló.
+  const censados = totales?.censados ?? conteos?.total ?? 0;
   // Sin /censos/resumen no hay universo FROG: el avance se muestra contra lo censado.
   const totalFrog = totales?.totalFrog ?? censados;
   return {
@@ -274,9 +277,10 @@ export const httpApi: CensoApi = {
     return request<RegistroCenso[]>('/censos');
   },
 
-  async listCoolers({ page = 1, pageSize = 20, serie }: CoolersQuery = {}) {
+  async listCoolers({ page = 1, pageSize = 20, serie, ruta }: CoolersQuery = {}) {
     const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (serie?.trim()) qs.set('serie', serie.trim());
+    if (ruta?.trim()) qs.set('ruta', ruta.trim());
     const r = await request<CoolersPage>(`/coolers?${qs}`);
     return {
       ...r,
@@ -285,6 +289,26 @@ export const httpApi: CensoApi = {
         evidencias: c.evidencias.map((e) => ({ ...e, url: hostDeImagenes(e.url) })),
       })),
     };
+  },
+
+  async listFrog(ruta: string) {
+    try {
+      return await request<FrogRow[]>('/frog/enfriadores', {
+        method: 'POST',
+        // La UDN va abierta: la ruta ya identifica al inspector.
+        body: { udnIni: '00', udnFin: '99', rutaIni: ruta, rutaFin: ruta },
+      });
+    } catch (e) {
+      // 404 = FROG no devolvió equipos para el rango. Para la pantalla es lista vacía.
+      if (e instanceof ApiError && e.status === 404) return [];
+      throw e;
+    }
+  },
+
+  async listFaltantes(ruta: string) {
+    const qs = new URLSearchParams({ rutaIni: ruta, rutaFin: ruta });
+    const r = await request<{ items: FrogRow[] }>(`/coolers/faltantes?${qs}`);
+    return r.items ?? [];
   },
 
   async saveRegistro(input: RegistroCensoInput) {
@@ -318,8 +342,10 @@ export const httpApi: CensoApi = {
       request<ResumenApi>(`/censos/resumen${ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''}`).catch(
         () => null
       ),
+      // rutaIni sin rutaFin significa "de esa ruta en adelante": hay que mandar las dos
+      // para acotar a la ruta del inspector.
       request<CoolersResumenApi>(
-        `/coolers/resumen${ruta ? `?rutaIni=${encodeURIComponent(ruta)}` : ''}`
+        `/coolers/resumen${ruta ? `?${new URLSearchParams({ rutaIni: ruta, rutaFin: ruta })}` : ''}`
       ).catch(() => null),
     ]);
     if (!totales && !conteos) throw new Error('No se pudieron cargar los indicadores.');

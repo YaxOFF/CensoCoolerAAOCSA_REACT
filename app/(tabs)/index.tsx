@@ -2,6 +2,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { USE_MOCK } from '@/api';
@@ -23,11 +24,22 @@ import {
 
 export default function HomeScreen() {
   const { ruta, salir } = useSession();
-  const { resumen, error } = useResumen();
+  const { resumen, error, recargar } = useResumen();
   const router = useRouter();
+  const [refrescando, setRefrescando] = useState(false);
+
+  // recargar() no expone su propio estado de carga: el spinner del gesto lo lleva la pantalla.
+  async function refrescar() {
+    setRefrescando(true);
+    try {
+      await recargar();
+    } finally {
+      setRefrescando(false);
+    }
+  }
 
   return (
-    <Screen top>
+    <Screen top refreshing={refrescando} onRefresh={refrescar}>
       <Hero
         kicker="Censo AAOCSA"
         title="Enfriadores"
@@ -45,9 +57,25 @@ export default function HomeScreen() {
       {resumen ? (
         <StatRow
           items={[
-            { valor: resumen.totalFrog, etiqueta: 'En FROG', color: colors.blue },
-            { valor: resumen.censados, etiqueta: 'Censados', color: colors.green },
-            { valor: resumen.pendientes, etiqueta: 'Faltantes', color: colors.red },
+            // Cada cifra abre el Historial en el modo que la representa.
+            {
+              valor: resumen.totalFrog,
+              etiqueta: 'En FROG',
+              color: colors.blue,
+              onPress: () => router.navigate('/history?modo=frog'),
+            },
+            {
+              valor: resumen.censados,
+              etiqueta: 'Censados',
+              color: colors.green,
+              onPress: () => router.navigate('/history?modo=censados'),
+            },
+            {
+              valor: resumen.pendientes,
+              etiqueta: 'Faltantes',
+              color: colors.red,
+              onPress: () => router.navigate('/history?modo=faltantes'),
+            },
             { valor: `${resumen.porcentaje}%`, etiqueta: 'Avance', color: colors.amber },
           ]}
         />
