@@ -209,8 +209,34 @@ npm run check          # asserts de las reglas de negocio (sin framework de test
 npm run typecheck      # tsc --noEmit
 ```
 
-Desarrollo con Expo Go alcanza para todo el flujo. Para un APK instalable hace falta un dev build
-con EAS (`npx eas build -p android`), que también es lo que se necesita para producción.
+Desarrollo con Expo Go alcanza para todo el flujo.
+
+## Compilar el APK
+
+**No se usa EAS.** El APK se compila localmente con Gradle. El procedimiento completo —requisitos,
+firma, qué recompilar según lo que cambiaste, cómo subir versión— está en **`COMPILAR.md`**; eso es
+la fuente de verdad. Resumen:
+
+```bash
+npm install
+npx expo prebuild --platform android              # genera android/ desde app.json
+echo "sdk.dir=$HOME/Android/Sdk" > android/local.properties
+cd android && JAVA_HOME=~/jdks/jdk-17.0.13+11 ANDROID_HOME=~/Android/Sdk ./gradlew assembleRelease
+# → android/app/build/outputs/apk/release/app-release.apk  (~126 MB)
+```
+
+Tres cosas que hay que tener presentes al compilar:
+
+- **`android/` no está en git** y es desechable: la genera `prebuild` desde `app.json`. Nunca edites
+  `android/app/build.gradle` ni el manifest a mano — el siguiente `prebuild` los pisa. Lo que se
+  toca es `app.json`. (Excepción: la config de firma, que hoy no existe; ver `COMPILAR.md` §4.)
+- **JDK 17 obligatorio.** Con el Java del sistema (25) el build truena.
+- **`.env` se embebe en el bundle al compilar.** Revisa `EXPO_PUBLIC_API_URL` y
+  `EXPO_PUBLIC_USE_MOCK=false` *antes* de correr Gradle, no después. Y el token que va ahí queda
+  legible dentro del APK: no es un secreto.
+
+El APK sale firmado con el `debug.keystore` que genera el template de Expo. Alcanza para instalar
+por USB o repartir el archivo; no sirve para Play Store. Keystore propio: pendiente.
 
 ## No tocar: los `overrides` de package.json
 

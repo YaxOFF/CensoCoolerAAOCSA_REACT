@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Censo de Enfriadores",
+    "name": "CensoCooler",
     "slug": "CensoEnfriadores_ReactNative",
     "scheme": "censoenfriadores",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/iconCooler.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -15,7 +15,7 @@
       "package": "com.censoenfriadores.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "foregroundImage": "./assets/iconCooler.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
