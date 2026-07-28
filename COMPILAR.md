@@ -125,6 +125,11 @@ cd android && JAVA_HOME=~/jdks/jdk-17.0.13+11 ANDROID_HOME=~/Android/Sdk ./gradl
 2. `expo.android.versionCode` en `app.json` (+1). `prebuild` lo escribe al `build.gradle`; editar
    el `build.gradle` a mano no sirve, el siguiente `prebuild` lo pisa.
 3. `prebuild` + build.
+4. Publicar en el servidor de updates: subir el `.apk` a
+   `https://files.censo.aaocsa.com/app-release/` y actualizar ahí el `version.json` con el
+   **mismo** `versionCode` del paso 2. Si el JSON no se actualiza, nadie recibe la versión;
+   si dice un `versionCode` mayor al del APK publicado, todos ven el aviso para siempre.
+   Formato del JSON: ver *Auto-actualización del APK* en `CLAUDE.md`.
 
 ---
 

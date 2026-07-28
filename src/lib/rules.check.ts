@@ -28,6 +28,7 @@ import {
   upsertRegistro,
   validarDraft,
 } from './rules.ts';
+import { normalizarVersion } from './version.ts';
 
 const CATALOGOS: Catalogos = {
   tipos: ['AAOCSA', 'PEÑAFIEL'],
@@ -146,3 +147,28 @@ assert.equal(csv.includes('"Dice ""urgente"", falta parrilla"'), true, 'escapa l
 assert.equal(csv.split('\r\n').length, 4, 'encabezado + 3 filas');
 
 console.log('✓ reglas del censo OK');
+
+/* ── version.json del servidor de updates (borde de confianza) ─────────────── */
+const BASE = 'https://files.censo.aaocsa.com/app-release';
+assert.equal(normalizarVersion(null, BASE), null, 'JSON no-objeto ⇒ null');
+assert.equal(normalizarVersion({ versionName: '1.1' }, BASE), null, 'sin versionCode ⇒ null');
+assert.equal(normalizarVersion({ versionCode: 2 }, BASE), null, 'sin apkUrl ⇒ null');
+assert.equal(normalizarVersion({ versionCode: '2.5', apkUrl: 'a.apk' }, BASE), null, 'versionCode no entero ⇒ null');
+assert.equal(
+  normalizarVersion({ versionCode: 2, apkUrl: '/a.apk' }, BASE)?.apkUrl,
+  `${BASE}/a.apk`,
+  'apkUrl relativa cuelga del servidor de updates, sin doble diagonal'
+);
+assert.equal(
+  normalizarVersion({ versionCode: 2, apkUrl: 'https://otro/x.apk' }, BASE)?.apkUrl,
+  'https://otro/x.apk',
+  'apkUrl absoluta se respeta'
+);
+assert.equal(normalizarVersion({ versionCode: 2, apkUrl: 'a.apk' }, BASE)?.forceUpdate, false, 'forceUpdate default false');
+assert.equal(
+  normalizarVersion({ versionCode: 2, apkUrl: 'a.apk', forceUpdate: 'true' }, BASE)?.forceUpdate,
+  false,
+  'forceUpdate solo con booleano true, no con la cadena'
+);
+
+console.log('✓ version.json OK');

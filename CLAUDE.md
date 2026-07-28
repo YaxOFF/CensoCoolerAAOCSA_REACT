@@ -269,6 +269,41 @@ node -p "require('./node_modules/react-native-worklets/package.json').version"  
 Con un dev build de EAS esto deja de importar: ahí el nativo se compila desde `node_modules`, así que
 las versiones siempre coinciden. Los `overrides` existen **solo por Expo Go**.
 
+## Auto-actualización del APK
+
+La app se reparte fuera de Play Store, así que se actualiza sola contra un Nginx propio:
+`EXPO_PUBLIC_UPDATE_URL` (default `https://files.censo.aaocsa.com/app-release`).
+
+- `src/api/updates.ts` — lee `version.json`, compara contra `Application.nativeBuildVersion`
+  (el `versionCode`), descarga el APK a la caché y lo abre con el instalador del sistema.
+- `src/ui/ModalActualizacion.tsx` — el aviso, con changelog, progreso y reintento. Montado una
+  sola vez en `app/_layout.tsx`, como `BannerRed`. Con `forceUpdate: true` no se puede cerrar.
+
+`version.json` que sirve el Nginx:
+
+```json
+{
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "apkUrl": "CensoCooler-1.0.1.apk",
+  "whatsNew": "• Arregla el guardado sin GPS.\n• Reporte más rápido.",
+  "forceUpdate": false
+}
+```
+
+`apkUrl` relativa se resuelve contra `EXPO_PUBLIC_UPDATE_URL`. Manda `versionCode`, no
+`versionName`. Publicar versión nueva: ver *Subir versión* en `COMPILAR.md`.
+
+**No se usa `react-native-update-apk`**: sin config plugin, obligaría a editar `android/` a mano y
+`prebuild` lo pisa. `expo-file-system` ya trae descarga con progreso **y** su propio FileProvider
+(`${applicationId}.FileSystemFileProvider`, con `cache-path`), y `expo-intent-launcher` lanza el
+`INSTALL_PACKAGE`. El único cambio nativo es `android.permissions: ["REQUEST_INSTALL_PACKAGES"]`
+en `app.json`, que `prebuild` aplica solo.
+
+El permiso de Android 8+ "instalar apps desconocidas" no se consulta antes: no hay API de Expo
+para `canRequestPackageInstalls()`. Lo pide el instalador del sistema, y si el intent falla el
+modal ofrece un botón que abre esos ajustes.
+
 ## Fuera de alcance por ahora
 
 Decisiones tomadas con el usuario; **no agregar sin pedirlo**:
