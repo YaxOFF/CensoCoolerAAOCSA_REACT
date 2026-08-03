@@ -59,10 +59,15 @@ export function aplicarEnPiso(
 }
 
 /** §7 y §12.1 — el estado del enfriador es obligatorio. Devuelve el error o null. */
-export function validarDraft(draft: Pick<Draft, 'status' | 'estadoEnfriador' | 'numeroSerie'>): string | null {
+export function validarDraft(
+  draft: Pick<Draft, 'status' | 'estadoEnfriador' | 'numeroSerie'>,
+  fotos: { tipo: string; uri?: string }[] = [],
+): string | null {
   if (!draft.numeroSerie.trim()) return 'El número de serie es obligatorio.';
   if (!draft.status) return 'Indica si la información recuperada es correcta.';
   if (!draft.estadoEnfriador) return 'El estado del enfriador es obligatorio.';
+  // La foto de la placa es la evidencia que amarra el censo a la serie: sin ella no se guarda.
+  if (!fotos.some((f) => f.tipo === 'Placa' && f.uri)) return 'La fotografía de la placa es obligatoria.';
   return null;
 }
 

@@ -102,7 +102,14 @@ assert.equal(
 );
 assert.equal(validarDraft({ numeroSerie: 'A-1', status: null, estadoEnfriador: 'Obsoleto' }) !== null, true);
 assert.equal(validarDraft({ numeroSerie: '', status: 'NUEVO', estadoEnfriador: 'Obsoleto' }) !== null, true);
-assert.equal(validarDraft({ numeroSerie: 'A-1', status: 'NUEVO', estadoEnfriador: 'Obsoleto' }), null);
+const placa = [{ tipo: 'Placa', uri: 'file://placa.jpg' }];
+const draftOk = { numeroSerie: 'A-1', status: 'NUEVO' as const, estadoEnfriador: 'Obsoleto' as const };
+assert.equal(validarDraft(draftOk, placa), null);
+
+/* La foto de la placa es obligatoria. */
+assert.equal(validarDraft(draftOk), 'La fotografía de la placa es obligatoria.');
+assert.equal(validarDraft(draftOk, [{ tipo: 'Frontal', uri: 'file://f.jpg' }]) !== null, true);
+assert.equal(validarDraft(draftOk, [{ tipo: 'Placa', uri: '' }]) !== null, true);
 
 /* Regla 6 (§8) — guardar reemplaza por número de serie, no duplica. */
 const base = [censo('A-1'), censo('B-2')];

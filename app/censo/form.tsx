@@ -97,7 +97,7 @@ export default function FormScreen() {
 
   async function onGuardar() {
     if (!draft) return;
-    const error = validarDraft({ ...draft, estadoEnfriador: estado });
+    const error = validarDraft({ ...draft, estadoEnfriador: estado }, fotos);
     if (error) {
       Alert.alert('Falta información', error);
       return;
@@ -233,7 +233,7 @@ export default function FormScreen() {
           />
         </Field>
 
-        <Field label="Evidencia fotográfica">
+        <Field label="Evidencia fotográfica (Placa obligatoria)">
           <View style={s.fotos}>
             {TIPOS_FOTO.map((tipo) => {
               const foto = fotos.find((f) => f.tipo === tipo);
