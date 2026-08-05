@@ -347,7 +347,8 @@ function DetalleModal({ fila, onClose }: { fila: Fila | null; onClose: () => voi
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
           <View style={s.card}>
-            <KeyValues rows={rows} />
+            {/* Tap o pulsación larga copia el valor: en campo se dictan series y folios. */}
+            <KeyValues rows={rows} copiable />
           </View>
 
           {censo && (

@@ -5,9 +5,13 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { ComponentProps, ReactNode, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
+  Platform,
+  ToastAndroid,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -408,17 +412,45 @@ export function StatRow({
 }
 
 /** Filas clave/valor (.kv de la demo). */
-export function KeyValues({ rows }: { rows: [string, string][] }) {
+/** `copiable`: tap o pulsación larga sobre la fila copia el valor al portapapeles. */
+export function KeyValues({ rows, copiable }: { rows: [string, string][]; copiable?: boolean }) {
   return (
     <View style={s.kv}>
-      {rows.map(([k, v], i) => (
-        <View key={k} style={[s.kvRow, i === rows.length - 1 && { borderBottomWidth: 0 }]}>
-          <Text style={s.kvKey}>{k}</Text>
-          <Text style={s.kvValue}>{v}</Text>
-        </View>
-      ))}
+      {rows.map(([k, v], i) => {
+        const estilo = [s.kvRow, i === rows.length - 1 && { borderBottomWidth: 0 }];
+        if (!copiable) {
+          return (
+            <View key={k} style={estilo}>
+              <Text style={s.kvKey}>{k}</Text>
+              <Text style={s.kvValue}>{v}</Text>
+            </View>
+          );
+        }
+        const copiar = () => copiarAlPortapapeles(v, k);
+        return (
+          <Pressable
+            key={k}
+            onPress={copiar}
+            onLongPress={copiar}
+            style={({ pressed }) => [...estilo, pressed && { backgroundColor: colors.card2 }]}
+          >
+            <Text style={s.kvKey}>{k}</Text>
+            <Text style={s.kvValue}>{v}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
+}
+
+/** Nada que copiar si el campo está vacío o es el guion de "sin dato". */
+async function copiarAlPortapapeles(valor: string, etiqueta: string) {
+  const v = valor?.trim();
+  if (!v || v === '—') return;
+  await Clipboard.setStringAsync(v);
+  const msg = `${etiqueta} copiado al portapapeles`;
+  if (Platform.OS === 'android') ToastAndroid.show(msg, ToastAndroid.SHORT);
+  else Alert.alert('', msg);
 }
 
 /** Barras de distribución del dashboard y del reporte. */
