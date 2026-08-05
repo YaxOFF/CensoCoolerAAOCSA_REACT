@@ -34,6 +34,11 @@ export interface CensoApi {
    *  Endpoint: POST /frog/enfriadores  body { udnIni:"00", udnFin:"99", rutaIni, rutaFin } */
   listFrog(ruta: string): Promise<FrogRow[]>;
 
+  /** Rutas que FROG tiene dadas de alta en ese CEDIS. Se consulta bajo demanda
+   *  (al abrir el selector de ruta), no al arrancar: son decenas por UDN.
+   *  Endpoint: GET /frog/rutas/:udn  (404 => lista vacía) */
+  listRutas(udn: string): Promise<string[]>;
+
   /** Equipos de FROG que esa ruta todavía no censa (§10), solo `items`.
    *  Endpoint: GET /coolers/faltantes?rutaIni=…&rutaFin=… */
   listFaltantes(ruta: string): Promise<FrogRow[]>;

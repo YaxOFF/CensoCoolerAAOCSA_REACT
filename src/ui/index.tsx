@@ -4,9 +4,10 @@
    No hay librería de UI a propósito: la demo define su propio lenguaje visual. */
 
 import { Ionicons } from '@expo/vector-icons';
-import { ComponentProps, ReactNode } from 'react';
+import { ComponentProps, ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -262,6 +263,80 @@ export function Select<T extends string>({
         })}
       </View>
     </View>
+  );
+}
+
+/** Combobox desplegable: para catálogos largos donde los chips del Select no caben (ej. CEDIS). */
+export function Dropdown<T extends string>({
+  value,
+  options,
+  onChange,
+  placeholder = '— Selecciona —',
+  disabled,
+  label = (v) => v,
+  onOpen,
+  loading,
+  vacio = 'Sin opciones.',
+}: {
+  value: T | '';
+  options: readonly T[];
+  onChange: (v: T) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  label?: (v: T) => string;
+  /** Se dispara al abrir: aquí se cargan las opciones que se consultan bajo demanda. */
+  onOpen?: () => void;
+  loading?: boolean;
+  vacio?: string;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <>
+      <Pressable
+        disabled={disabled}
+        onPress={() => {
+          setAbierto(true);
+          onOpen?.();
+        }}
+        style={[s.input, s.ddBtn, disabled && { opacity: 0.5 }]}
+      >
+        <Text style={value ? s.ddValue : s.ddPlaceholder} numberOfLines={1}>
+          {value ? label(value) : placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color={colors.text2} />
+      </Pressable>
+
+      <Modal visible={abierto} transparent animationType="fade" onRequestClose={() => setAbierto(false)}>
+        <Pressable style={s.ddBackdrop} onPress={() => setAbierto(false)}>
+          <Pressable style={s.ddSheet} onPress={() => {}}>
+            {loading && <Loading />}
+            {!loading && options.length === 0 && (
+              <Text style={[s.ddItemText, { padding: 20, textAlign: 'center', color: colors.text2 }]}>
+                {vacio}
+              </Text>
+            )}
+            <ScrollView>
+              {(loading ? [] : options).map((opt) => {
+                const on = opt === value;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => {
+                      onChange(opt);
+                      setAbierto(false);
+                    }}
+                    style={[s.ddItem, on && s.ddItemOn]}
+                  >
+                    <Text style={[s.ddItemText, on && s.ddItemTextOn]}>{label(opt)}</Text>
+                    {on && <Ionicons name="checkmark" size={18} color={colors.blue} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -564,6 +639,31 @@ const s = StyleSheet.create({
   selectOptOn: { backgroundColor: colors.blue, borderColor: colors.blue },
   selectOptText: { color: colors.text, fontSize: 14, fontWeight: '600' },
   selectOptTextOn: { color: '#fff' },
+
+  ddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  ddValue: { flex: 1, color: colors.text, fontSize: 16 },
+  ddPlaceholder: { flex: 1, color: colors.text2, fontSize: 16 },
+  ddBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
+  ddSheet: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    maxHeight: '70%',
+    overflow: 'hidden',
+    ...shadow,
+  },
+  ddItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  ddItemOn: { backgroundColor: colors.card2 },
+  ddItemText: { color: colors.text, fontSize: 15 },
+  ddItemTextOn: { color: colors.blue, fontWeight: '700' },
 
   seg: { flexDirection: 'row', gap: 4, backgroundColor: colors.card2, borderRadius: radius.input, padding: 4 },
   segBtn: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: 'center' },

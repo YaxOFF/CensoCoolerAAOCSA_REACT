@@ -1,23 +1,27 @@
 /* LoginScreen — login.html de la demo.
-   Sin contraseña: la ruta identifica al inspector en campo. */
+   Sin contraseña: la ruta identifica al inspector en campo.
+   La ruta se elige en dos pasos porque FROG las lista por CEDIS: primero la UDN,
+   y con ella se consultan las rutas de ese centro (GET /frog/rutas/:udn). */
 
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert } from 'react-native';
 
-import { useCatalogos } from '@/store/catalogos';
+import { CEDIS_IDS, cedisLabel } from '@/api/types';
+import { useRutas } from '@/lib/useRutas';
 import { useSession } from '@/store/session';
-import { Card, Chip, Field, Hero, Input, Muted, PrimaryButton, Screen } from '@/ui';
+import { Card, Dropdown, Field, Hero, PrimaryButton, Screen } from '@/ui';
 
 export default function LoginScreen() {
   const { entrar } = useSession();
-  const catalogos = useCatalogos();
   const router = useRouter();
+  const [udn, setUdn] = useState('');
   const [ruta, setRuta] = useState('');
+  const { rutas, cargando, cargar } = useRutas();
 
   async function onEntrar() {
-    if (!ruta.trim()) {
-      Alert.alert('Falta la ruta', 'Captura tu número de ruta.');
+    if (!ruta) {
+      Alert.alert('Falta la ruta', 'Selecciona tu CEDIS y tu número de ruta.');
       return;
     }
     await entrar(ruta);
@@ -29,30 +33,37 @@ export default function LoginScreen() {
       <Hero
         kicker="Censo Nacional"
         title="Enfriadores"
-        sub="Ingresa tu número de ruta para comenzar."
+        sub="Selecciona tu CEDIS y tu ruta para comenzar."
       />
 
       <Card>
-        <Field label="Ruta" required>
-          <Input
-            value={ruta}
-            onChangeText={setRuta}
-            placeholder="Ej. R-101"
-            onSubmitEditing={onEntrar}
+        <Field label="CEDIS" required>
+          <Dropdown
+            value={udn}
+            options={CEDIS_IDS}
+            label={cedisLabel}
+            onChange={(id) => {
+              setUdn(id);
+              setRuta(''); // otra UDN, otras rutas: la elegida ya no aplica
+            }}
+            placeholder="— Selecciona tu CEDIS —"
           />
         </Field>
-        <PrimaryButton onPress={onEntrar}>Entrar</PrimaryButton>
 
-        {catalogos.rutas.length > 0 && (
-          <>
-            <Muted style={{ marginTop: 16, fontSize: 12 }}>Rutas disponibles:</Muted>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-              {catalogos.rutas.map((r) => (
-                <Chip key={r} label={r} onPress={() => setRuta(r)} />
-              ))}
-            </View>
-          </>
-        )}
+        <Field label="Ruta" required>
+          <Dropdown
+            value={ruta}
+            options={rutas}
+            onChange={setRuta}
+            onOpen={() => cargar(udn)}
+            loading={cargando}
+            disabled={!udn}
+            placeholder={udn ? '— Selecciona tu ruta —' : 'Elige primero un CEDIS'}
+            vacio="FROG no tiene rutas para este CEDIS."
+          />
+        </Field>
+
+        <PrimaryButton onPress={onEntrar}>Entrar</PrimaryButton>
       </Card>
     </Screen>
   );

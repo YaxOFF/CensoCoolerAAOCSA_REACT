@@ -11,10 +11,12 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CEDIS, CEDIS_IDS, cedisLabel } from '@/api/types';
 import type { EstadoEnfriador, Foto, Gps, TipoFoto } from '@/api/types';
+import { useRutas } from '@/lib/useRutas';
 import { esFotoMock, obtenerGps, tomarFoto } from '@/lib/device';
 import { fmtCoord } from '@/lib/format';
-import { aplicarEnPiso, camposEditables, validarDraft } from '@/lib/rules';
+import { aplicarEnPiso, camposEditables, fotoOpcional, validarDraft } from '@/lib/rules';
 import { useCatalogos } from '@/store/catalogos';
 import { useDraft } from '@/store/draft';
 import { useRecords } from '@/store/records';
@@ -23,6 +25,7 @@ import { colors, radius } from '@/theme';
 import {
   Badge,
   Card,
+  Dropdown,
   Field,
   GhostButton,
   H2,
@@ -61,11 +64,13 @@ export default function FormScreen() {
     numeroCliente: string;
     nombreCliente: string;
   } | null>(null);
+  const { rutas, cargando: cargandoRutas, cargar: cargarRutas } = useRutas();
 
   if (!draft) return <Redirect href="/search" />;
 
   const editable = camposEditables(draft.status);
   const clienteBloqueado = !editable || estado === 'En Piso';
+  const sinFotoObligatoria = fotoOpcional(estado);
 
   function cambiarEstado(nuevo: EstadoEnfriador) {
     if (!draft) return;
@@ -182,10 +187,27 @@ export default function FormScreen() {
 
         <View style={s.grid2}>
           <Field label="CEDIS" style={s.col}>
-            <Input value={draft.cedis} onChangeText={(t) => actualizar({ cedis: t })} editable={editable} autoCapitalize="words" />
+            <Dropdown
+              value={draft.cedis}
+              /* Si FROG trae un CEDIS fuera del catálogo, se conserva como opción para no perderlo. */
+              options={draft.cedis && !CEDIS[draft.cedis] ? [...CEDIS_IDS, draft.cedis] : CEDIS_IDS}
+              label={cedisLabel}
+              onChange={(id) => actualizar({ cedis: id, ruta: '' })}
+              disabled={!editable}
+            />
           </Field>
           <Field label="Ruta" style={s.col}>
-            <Input value={draft.ruta} onChangeText={(t) => actualizar({ ruta: t })} editable={editable} />
+            <Dropdown
+              value={draft.ruta}
+              /* La ruta que trae FROG puede no estar en la lista del CEDIS: se conserva. */
+              options={draft.ruta && !rutas.includes(draft.ruta) ? [...rutas, draft.ruta] : rutas}
+              onChange={(r) => actualizar({ ruta: r })}
+              onOpen={() => cargarRutas(draft.cedis)}
+              loading={cargandoRutas}
+              disabled={!editable || !draft.cedis}
+              placeholder={draft.cedis ? '— Selecciona —' : 'Elige primero un CEDIS'}
+              vacio="FROG no tiene rutas para este CEDIS."
+            />
           </Field>
         </View>
 
@@ -223,6 +245,10 @@ export default function FormScreen() {
           <Note>"En Piso": el cliente se asigna automáticamente a BODEGA.</Note>
         )}
 
+        {sinFotoObligatoria && (
+          <Note>"Acta Hechos": la evidencia fotográfica es opcional.</Note>
+        )}
+
         <Field label="Observaciones">
           <Input
             value={observaciones}
@@ -233,7 +259,7 @@ export default function FormScreen() {
           />
         </Field>
 
-        <Field label="Evidencia fotográfica (Placa obligatoria)">
+        <Field label={`Evidencia fotográfica (${sinFotoObligatoria ? 'opcional' : 'Placa obligatoria'})`}>
           <View style={s.fotos}>
             {TIPOS_FOTO.map((tipo) => {
               const foto = fotos.find((f) => f.tipo === tipo);

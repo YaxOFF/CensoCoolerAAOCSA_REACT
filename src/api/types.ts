@@ -11,9 +11,35 @@ export const ESTADOS_ENFRIADOR = [
   'Descompuesto',
   'Obsoleto',
   'En Piso',
+  // Se escribe sin "de" a propósito: así calza con el enum "ACTA HECHOS" del backend.
+  'Acta Hechos',
 ] as const;
 
 export type EstadoEnfriador = (typeof ESTADOS_ENFRIADOR)[number];
+
+/* CEDIS (UDN). Se guarda el id en formato XX, con el cero a la izquierda: es la llave
+   que consume GET /frog/rutas/:udn. El nombre es solo para mostrar. */
+export const CEDIS: Record<string, string> = {
+  '01': 'VILLAHERMOSA',
+  '02': 'CARDENAS',
+  '03': 'COMALCALCO',
+  '04': 'CHOAPAS',
+  '05': 'MINATITLAN',
+  '06': 'OAXACA',
+  '07': 'SALINA CRUZ',
+  '08': 'JUCHITAN',
+  '09': 'TEHUACAN',
+  '10': 'TEHUACAN CORPORATIVO',
+  '18': 'PICHUCALCO',
+  '19': 'EMILIANO ZAPATA',
+};
+
+export const CEDIS_IDS = Object.keys(CEDIS);
+
+/** "02" → "02 · CARDENAS". Un id fuera del catálogo se muestra tal cual. */
+export function cedisLabel(id: string): string {
+  return CEDIS[id] ? `${id} · ${CEDIS[id]}` : id;
+}
 
 /** Tipos de enfriador. FROG los devuelve en TIPOENFRI con estas mismas claves. */
 export const TIPOS_ENFRIADOR = ['AAOCSA', 'PEÑAFI', 'BONAFO', 'DANONE'] as const;

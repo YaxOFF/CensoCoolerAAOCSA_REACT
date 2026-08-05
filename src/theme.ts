@@ -70,6 +70,8 @@ export function estadoColor(estado?: string | null): string {
       return colors.text2;
     case 'EN_PISO':
       return colors.amber;
+    case 'ACTA_HECHOS':
+      return colors.purple;
     default:
       return colors.text2;
   }

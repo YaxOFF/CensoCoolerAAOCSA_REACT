@@ -48,11 +48,12 @@ interface CoolersResumenApi {
   rutaFin: string | null;
   total: number;
   tipoRegistro: { correcto: number; nuevo: number; correccion: number };
-  status: { usadoDisponible: number; descompuesto: number; obsoleto: number; enPiso: number };
+  // `actaHechos` es opcional: si el backend todavía no lo agrega, el conteo cae a 0.
+  status: Partial<Record<(typeof CLAVES_ESTADO)[number], number>>;
 }
 
 /* Las claves de `status` llegan en el mismo orden que ESTADOS_ENFRIADOR (§12.1). */
-const CLAVES_ESTADO = ['usadoDisponible', 'descompuesto', 'obsoleto', 'enPiso'] as const;
+const CLAVES_ESTADO = ['usadoDisponible', 'descompuesto', 'obsoleto', 'enPiso', 'actaHechos'] as const;
 
 function mapResumen(totales: ResumenApi | null, conteos: CoolersResumenApi | null): Resumen {
   // /censos/resumen manda: cuenta el padrón de FROG censado por esa ruta. El `total` de
@@ -135,6 +136,7 @@ const ESTADO_A_ENUM: Record<EstadoEnfriador, string> = {
   Descompuesto: 'DESCOMPUESTO',
   Obsoleto: 'OBSOLETO',
   'En Piso': 'EN PISO',
+  'Acta Hechos': 'ACTA HECHOS',
 };
 
 /* §5 — el status del censo va como `tipoRegistro` (enum CoolerTipoRegistro del backend).
@@ -300,6 +302,19 @@ export const httpApi: CensoApi = {
       });
     } catch (e) {
       // 404 = FROG no devolvió equipos para el rango. Para la pantalla es lista vacía.
+      if (e instanceof ApiError && e.status === 404) return [];
+      throw e;
+    }
+  },
+
+  async listRutas(udn: string) {
+    try {
+      const filas = await request<{ UDN: string; RUTA: string }[]>(
+        `/frog/rutas/${encodeURIComponent(udn)}`
+      );
+      // FROG repite la ruta cuando tiene varios registros: se deduplica para el selector.
+      return [...new Set(filas.map((f) => f.RUTA).filter(Boolean))].sort();
+    } catch (e) {
       if (e instanceof ApiError && e.status === 404) return [];
       throw e;
     }

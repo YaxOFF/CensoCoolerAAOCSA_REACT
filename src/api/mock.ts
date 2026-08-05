@@ -202,6 +202,11 @@ export const mockApi: CensoApi = {
     return FROG.map(aFrogRow);
   },
 
+  async listRutas(_udn: string) {
+    await delay();
+    return CATALOGOS.rutas;
+  },
+
   async listFaltantes(_ruta: string) {
     await delay();
     const censadas = new Set((await leer()).map((r) => r.numeroSerie));

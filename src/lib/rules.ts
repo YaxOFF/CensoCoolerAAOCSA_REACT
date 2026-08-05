@@ -58,6 +58,11 @@ export function aplicarEnPiso(
   return { patch: previo ?? actual, previo: null, bloqueado: false };
 }
 
+/** Con "Acta Hechos" no hay equipo que fotografiar: toda la evidencia es opcional. */
+export function fotoOpcional(estado: EstadoEnfriador | ''): boolean {
+  return estado === 'Acta Hechos';
+}
+
 /** §7 y §12.1 — el estado del enfriador es obligatorio. Devuelve el error o null. */
 export function validarDraft(
   draft: Pick<Draft, 'status' | 'estadoEnfriador' | 'numeroSerie'>,
@@ -67,7 +72,9 @@ export function validarDraft(
   if (!draft.status) return 'Indica si la información recuperada es correcta.';
   if (!draft.estadoEnfriador) return 'El estado del enfriador es obligatorio.';
   // La foto de la placa es la evidencia que amarra el censo a la serie: sin ella no se guarda.
-  if (!fotos.some((f) => f.tipo === 'Placa' && f.uri)) return 'La fotografía de la placa es obligatoria.';
+  // Excepción: con acta de hechos el equipo puede no estar accesible, así que la foto es opcional.
+  if (!fotoOpcional(draft.estadoEnfriador) && !fotos.some((f) => f.tipo === 'Placa' && f.uri))
+    return 'La fotografía de la placa es obligatoria.';
   return null;
 }
 

@@ -26,13 +26,14 @@ import {
   construirResumen,
   resolverStatus,
   upsertRegistro,
+  fotoOpcional,
   validarDraft,
 } from './rules.ts';
 import { normalizarVersion } from './version.ts';
 
 const CATALOGOS: Catalogos = {
   tipos: ['AAOCSA', 'PEÑAFIEL'],
-  estadosEnfriador: ['Usado Disponible', 'Descompuesto', 'Obsoleto', 'En Piso'],
+  estadosEnfriador: ['Usado Disponible', 'Descompuesto', 'Obsoleto', 'En Piso', 'Acta Hechos'],
   cedis: ['CEDIS Norte', 'CEDIS Sur'],
   rutas: ['R-101'],
   marcas: ['Imbera'],
@@ -110,6 +111,14 @@ assert.equal(validarDraft(draftOk, placa), null);
 assert.equal(validarDraft(draftOk), 'La fotografía de la placa es obligatoria.');
 assert.equal(validarDraft(draftOk, [{ tipo: 'Frontal', uri: 'file://f.jpg' }]) !== null, true);
 assert.equal(validarDraft(draftOk, [{ tipo: 'Placa', uri: '' }]) !== null, true);
+
+/* …salvo con "Acta Hechos": ahí toda la evidencia es opcional. */
+const draftActa = { ...draftOk, estadoEnfriador: 'Acta Hechos' as const };
+assert.equal(validarDraft(draftActa), null, 'acta de hechos guarda sin fotos');
+assert.equal(fotoOpcional('Acta Hechos'), true);
+assert.equal(fotoOpcional('Obsoleto'), false);
+// El estado sigue siendo obligatorio aunque la foto no lo sea.
+assert.equal(validarDraft({ ...draftActa, estadoEnfriador: '' }) !== null, true);
 
 /* Regla 6 (§8) — guardar reemplaza por número de serie, no duplica. */
 const base = [censo('A-1'), censo('B-2')];
