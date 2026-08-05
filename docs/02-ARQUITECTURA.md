@@ -10,56 +10,62 @@ No es Clean Architecture "de libro" ni MVC clásico. Es más simple: cuatro capa
 
 **Por qué esta forma y no otra:**
 
-- El backend real **no existe todavía**. El proyecto necesita poder desarrollarse y probarse por
-  completo sin él, y el día que exista, el swap debe ser "cambiar una variable de entorno", no
-  "reescribir pantallas". Eso exige que el contrato de datos (`CensoApi`) esté completamente
-  desacoplado de quien lo consume.
-- El dominio (censo, FROG, CEDIS, status) tiene **reglas de negocio no triviales** (§5, §6, §8,
-  §9, §10, §12 del spec) que deben poder verificarse sin levantar la app ni un simulador. Por eso
-  viven en `src/lib/rules.ts` como funciones puras, testeables con Node puro (`npm run check`).
-- Es el port 1:1 de una demo HTML/CSS/JS. La demo ya separaba `data.js` (datos), `shared.js`
-  (estado/reglas) y `styles.css` (visual); esa separación se preservó y se formalizó con tipos.
+- La app tiene que poder desarrollarse y probarse **sin backend** (Expo Go, sin red, en un
+  emulador), y el swap a producción debe ser "cambiar una variable de entorno", no "reescribir
+  pantallas". Eso exige que el contrato de datos (`CensoApi`) esté desacoplado de quien lo consume.
+- El dominio tiene **reglas de negocio no triviales** (§5, §6, §8, §9, §10, §12 del spec) que deben
+  poder verificarse sin levantar la app ni un simulador. Por eso viven en `src/lib/rules.ts` como
+  funciones puras, ejecutables con Node puro (`npm run check`).
+- El backend real habla **otro idioma** que el dominio: llaves en MAYÚSCULAS (`RAZONSOCIAL`), enums
+  sin acento (`CORRECCION`), estados con guion bajo (`USADO_DISPONIBLE`). Ese ruido se contiene
+  entero en `src/api/http.ts`; ninguna pantalla lo ve.
 
 ## Capas / módulos principales
 
 ```
-app/     → UI y navegación (expo-router). Cablea eventos de usuario a store/ y lib/.
-store/   → Estado de React vía Context. Sabe "qué hay que mostrar", no "de dónde sale".
-lib/     → Reglas de negocio puras + acceso a hardware (GPS/cámara) + export + formato.
+app/     → UI y navegación (expo-router). Cablea eventos de usuario a store/, lib/ y api.
+store/   → Estado de React vía Context/hooks. Sabe "qué hay que mostrar", no "de dónde sale".
+lib/     → Reglas de negocio puras + hardware (GPS/cámara) + parseo de versión + formato.
 api/     → El único borde que sabe si los datos vienen de AsyncStorage o de un servidor HTTP.
 ```
 
 | Capa | Responsabilidad | NO hace |
 |---|---|---|
-| `app/` | Renderizar pantallas, leer input del usuario, invocar `store/` y `api.*` | `fetch` directo, contener reglas de negocio, saber si hay mock |
-| `store/` | Mantener estado compartido entre pantallas (sesión, draft, registros, catálogos, resumen) vía Context | Reglas de negocio complejas (delega a `lib/rules.ts`), acceso a hardware |
-| `lib/` | Reglas de negocio puras (`rules.ts`), hardware resiliente (`device.ts`), export, formato | Conocer React, conocer si el backend es mock o real |
-| `api/` | Definir el contrato (`contract.ts`), implementarlo dos veces (`mock.ts`, `http.ts`) y elegir cuál usar (`index.ts`) | UI, navegación |
+| `app/` | Renderizar pantallas, leer input, invocar `store/` y `api.*` | `fetch` directo, contener reglas de negocio, saber si hay mock |
+| `store/` | Estado compartido (sesión, draft, registros, catálogos, resumen) | Reglas de negocio complejas (delega a `lib/rules.ts`), hardware |
+| `lib/` | Reglas puras (`rules.ts`), hardware resiliente (`device.ts`), parseo (`version.ts`), formato | Conocer React, conocer si el backend es mock o real |
+| `api/` | Contrato (`contract.ts`), dos implementaciones (`mock.ts`, `http.ts`), el interruptor (`index.ts`), transporte (`client.ts`) y updates (`updates.ts`) | UI, navegación |
+
+Algunas pantallas llaman a `api.*` **directamente**, sin pasar por un store: `search.tsx`
+(`lookupEnfriador`), `history.tsx` (`listCoolers`/`listFrog`/`listFaltantes`/`resetDemo`) y
+`report.tsx` (`generarReporte`). Es deliberado: ese estado es local a la pantalla y meterlo en un
+Context solo agregaría indirección.
 
 ## Flujo de una operación típica: guardar un censo
 
-Paso a paso desde que el usuario toca "Guardar censo" en `app/censo/form.tsx` hasta que queda
-persistido:
+Desde que el usuario toca "Guardar censo" en `app/censo/form.tsx`:
 
-1. **`app/censo/form.tsx` → `onGuardar()`** valida con `validarDraft()` de `src/lib/rules.ts`
-   (regla §12.1: estado del enfriador obligatorio). Si falla, `Alert.alert` y corta ahí — nunca
-   llega a `api`.
-2. Si no hay GPS capturado, se llama `obtenerGps()` de `src/lib/device.ts` (regla §12.3: sello
-   automático).
-3. Las fotos no simuladas se suben una por una con `api.subirFoto(uri, tipo)`.
-4. Se llama `guardar(input)` de `useRecords()` (`src/store/records.tsx`), que a su vez llama
-   `api.saveRegistro(input)`.
-5. **`src/api/index.ts`** decide si esa llamada va a `mockApi` (`src/api/mock.ts`) o a `httpApi`
-   (`src/api/http.ts`) según `EXPO_PUBLIC_USE_MOCK`.
-6. En el mock: `saveRegistro` marca `censado: 'SI'` (regla §8), llama a `upsertRegistro()` de
-   `src/lib/rules.ts` (reemplaza por `numeroSerie`, nunca duplica) y persiste el arreglo completo
-   en `AsyncStorage`.
-7. `useRecords().guardar()` vuelve a llamar `refrescar()`, que hace `api.listRegistros()` y
-   actualiza el estado de React — así Historial/Dashboard ven el dato nuevo sin recargar la app.
-8. `form.tsx` guarda el registro devuelto en el draft (`setUltimo`), limpia el draft (`limpiar()`)
-   y navega con `router.replace('/censo/done')`.
-9. `app/censo/done.tsx` lee `ultimo` de `useDraft()` y muestra la confirmación con
-   `Censado = SI`.
+1. **`onGuardar()`** valida con `validarDraft()` de `src/lib/rules.ts`: serie no vacía, `status`
+   decidido, `estadoEnfriador` elegido (§12.1) **y foto de Placa presente**. Si falla,
+   `Alert.alert` y corta — nunca llega a `api`.
+2. Si no hay GPS capturado, se llama `obtenerGps()` de `src/lib/device.ts` (§12.3: sello
+   automático). Nunca lanza: sin permiso devuelve coordenadas simuladas con `mock: true`.
+3. Se llama `guardar(input)` de `useRecords()` → `api.saveRegistro(input)`. El input incluye
+   `frog: draft.frog` — la fila cruda de FROG que se arrastra intacta desde el lookup.
+4. **`src/api/index.ts`** decide si va a `mockApi` o a `httpApi` según `EXPO_PUBLIC_USE_MOCK`.
+5. **Mock**: marca `censado: 'SI'` (§8), llama `upsertRegistro()` (reemplaza por `numeroSerie`,
+   nunca duplica) y persiste el arreglo completo en `AsyncStorage`.
+   **HTTP**: `POST /coolers` con el body de `mapAlta()` (FROG como base, pisado por lo que editó el
+   inspector) y después **una llamada por foto** a `POST /coolers/:id/evidencias`.
+6. `useRecords().guardar()` llama `refrescar()` (otro `api.listRegistros()`).
+7. `form.tsx` guarda el registro devuelto (`setUltimo`), limpia el draft y navega a
+   `/censo/done`, que muestra la confirmación con `Censado = SI`.
+
+> ⚠️ **Si falla la subida de una evidencia, el censo NO se tumba.** El cooler ya quedó creado en el
+> servidor; reintentar chocaría con el 409 de serie duplicada. `http.ts` hace `console.warn` y
+> conserva la `uri` local de esa foto. Consecuencia concreta: puede existir un censo en el servidor
+> con menos evidencias de las que el inspector tomó, y la app no lo avisa. Si algún día importa,
+> el lugar es una cola en `src/api/`.
 
 ## Diagrama de componentes
 
@@ -73,34 +79,54 @@ flowchart LR
     ApiIndex -->|USE_MOCK=false| Http["api/http.ts"]
     Mock -->|"upsertRegistro()"| Rules
     Mock --> AsyncStorage[("AsyncStorage")]
-    Http --> Client["api/client.ts (fetch)"]
-    Client --> Backend[("Backend real — no existe aún")]
-    RecordsStore -->|"listRegistros()"| ApiIndex
+    Http -->|"POST /coolers"| Client["api/client.ts (fetch)"]
+    Http -->|"multipart"| Upload["expo-file-system uploadAsync"]
+    Client --> Backend[("Backend FROG")]
+    Upload --> Backend
 ```
+
+## Detección de red (`src/api/client.ts` + `src/ui/BannerRed.tsx`)
+
+El banner de "sin conexión / red inestable" se monta una sola vez en `app/_layout.tsx` y lee un
+store externo mínimo (`useSyncExternalStore` sobre `suscribirRed`/`leerEstadoRed`). El estado sale
+de **dos fuentes**, porque ninguna sola alcanza:
+
+| Fuente | Qué aporta | Cadencia |
+|---|---|---|
+| NetInfo con `reachabilityUrl = {API_URL}/health` | Detecta la caída aunque el inspector esté parado sin pedir nada | 60 s con red, 5 s sin ella |
+| El propio tráfico de `request()` | Confirma la caída al instante y **es lo único que ve la lentitud** (`≥ 5 s` ⇒ `inestable`) | Cada llamada |
+
+Dos decisiones que importan:
+
+- **NetInfo apunta a `/health` propio, no al default de Google.** En un CEDIS puede haber internet
+  y aun así no haber ruta al servidor del censo; para el inspector eso es estar sin conexión.
+- **`isInternetReachable === null` no se trata como caída.** Es "todavía no sé" mientras corre el
+  primer sondeo; tratarlo como caída pintaría el banner en cada arranque.
+
+Con `EXPO_PUBLIC_USE_MOCK=true` no se dispara nada: el mock no pasa por `client.ts`, y
+`NetInfo.configure` ni siquiera corre si `API_URL` está vacía.
 
 ## Decisiones técnicas documentadas
 
-- **Context API en vez de Redux/Zustand.** El estado global es chico (sesión, draft de un censo,
-  lista de registros, catálogos, resumen) y de vida corta. Una librería externa añadiría
-  boilerplate sin beneficio medible. Trade-off aceptado: sin selectors ni memoización fina, cada
-  `Provider` re-renderiza sus consumidores enteros — aceptable a esta escala.
-- **Sin librería de componentes UI.** La demo HTML define un lenguaje visual propio
-  (`styles.css`); replicarlo con `StyleSheet` + un archivo `src/ui/index.tsx` evita traer una
-  dependencia pesada (NativeBase/Tamagui/RN Paper) para 15 componentes simples.
-- **`src/lib/rules.ts` es 100% función pura**, sin imports de React ni Expo. Esto permite
-  ejecutarlo con Node puro vía `node --experimental-strip-types` (`npm run check`), sin levantar
-  Jest ni un simulador — feedback de reglas de negocio en menos de un segundo.
-- **`src/lib/device.ts` nunca lanza.** Cualquier fallo de permiso de cámara/GPS cae a un valor
-  simulado marcado `mock: true`. Decisión explícita: un inspector en campo con permisos mal
-  configurados o en un emulador sin GPS **no debe quedar bloqueado** para completar el censo.
-- **AsyncStorage como "backend" temporal del mock**, no solo estado en memoria: así Historial y
-  Dashboard sobreviven a un reinicio de la app durante el desarrollo, simulando persistencia real.
-- **Interruptor único en `src/api/index.ts`** en vez de inyección de dependencias más elaborada
-  (contexto de API, DI container): con una sola variable de entorno (`EXPO_PUBLIC_USE_MOCK`) y un
-  named export (`api`) alcanza — cualquier cosa más sería sobre-ingeniería para dos
-  implementaciones.
-- **Mapeo de forma de datos vive en `http.ts`, nunca en pantallas.** Si el backend real responde
-  con otros nombres de campo o un envoltorio `{ data: … }`, la corrección se hace ahí, para que
-  `app/**/*.tsx` jamás tenga que saber sobre el formato de transporte.
-- **App fija en modo claro** (`src/theme.ts`): la demo original no tenía modo oscuro; agregarlo
-  no estaba en el alcance del port.
+- **Context API en vez de Redux/Zustand.** El estado global es chico y de vida corta. Trade-off:
+  sin selectors ni memoización fina, cada `Provider` re-renderiza sus consumidores enteros —
+  aceptable a esta escala.
+- **Sin librería de componentes UI.** Replicar el lenguaje visual de la demo con `StyleSheet` + un
+  archivo `src/ui/index.tsx` evita traer una dependencia pesada para 28 componentes simples.
+- **`src/lib/rules.ts` es 100% función pura**, sin imports de React ni Expo: se ejecuta con
+  `node --experimental-strip-types` (`npm run check`) en menos de un segundo.
+- **`src/lib/version.ts` está separado de `src/api/updates.ts`** por el mismo motivo: el parseo del
+  `version.json` remoto es un borde de confianza y así queda cubierto por `npm run check`.
+- **`src/lib/device.ts` nunca lanza.** Cualquier fallo de permiso cae a un valor simulado marcado
+  `mock: true`: un inspector en campo con permisos mal configurados no debe quedar bloqueado.
+- **La subida de evidencias usa `uploadAsync` de expo-file-system, no `fetch` + `FormData`.** En
+  Android, adjuntar un `file://` del ImagePicker a un `FormData` falla con "Network request failed";
+  `uploadAsync` arma el multipart en nativo leyendo el archivo del disco.
+- **El reporte lo genera el backend, no la app.** `POST /reportes/coolers[/excel]` devuelve una
+  **URL** de descarga (no el binario). La app solo abre / descarga / comparte / muestra el QR.
+  Quedó código cliente de reporte (`construirReporte`, `construirCsv`, `COLUMNAS_REPORTE`) que hoy
+  solo consumen el mock y `rules.check.ts` — ver [05-API.md](05-API.md).
+- **`updates.ts` no pasa por `client.ts`.** El servidor de archivos no es el backend del censo: otra
+  URL base, sin token, y su caída no significa "estar sin red".
+- **App fija en modo claro** (`src/theme.ts`): la demo original no tenía modo oscuro. La barra de
+  estado sí sigue al sistema (`<StatusBar style="auto" />`).

@@ -39,3 +39,13 @@ Los endpoints esperados están documentados en `src/api/contract.ts` e implement
 
 `CLAUDE.md` tiene el detalle: reglas de negocio, estructura del proyecto, convenciones y cómo hacer
 los cambios más comunes.
+
+## Build
+
+npx expo prebuild --platform android --clean
+echo "sdk.dir=$HOME/Android/Sdk" > android/local.properties
+cd android && JAVA_HOME=~/jdks/jdk-17.0.13+11 ANDROID_HOME=~/Android/Sdk ./gradlew assembleRelease
+
+Verificar antes de subir APK:
+
+grep -E 'versionCode|versionName' android/app/build.gradle   # debe decir 3 / 1.0.2

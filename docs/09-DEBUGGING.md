@@ -2,56 +2,63 @@
 
 ## Logs
 
-No hay sistema de logging estructurado ni servicio externo (Sentry, etc.) integrado. Los canales
-disponibles:
+No hay logging estructurado ni servicio externo (Sentry, etc.). Los canales disponibles:
 
-- **Consola de Metro** (`npm start`): `console.*` y errores no capturados de JS/React.
+- **Consola de Metro** (`npm start`): `console.*` y errores no capturados de JS/React. El único
+  `console.warn` propio del proyecto es el de la evidencia que no se pudo subir
+  (`src/api/http.ts:saveRegistro`).
 - **Errores de red**: todos pasan por `ApiError` (`src/api/client.ts`), con `message`, `status` y
-  `body` — inspeccionables en cualquier `catch` o con un `console.error(e)` temporal.
-- **Errores de usuario**: se muestran con `Alert.alert(...)` en vez de solo loguearse — es la
-  política del proyecto ("los estados de carga y error se muestran, no se tragan").
-- **Logcat de Android** (`adb logcat`) para errores nativos por debajo de JS (permisos, cámara,
-  crashes del runtime).
-
-## Monitoreo
-
-No aplica: no hay app en producción con usuarios reales todavía, ni dashboards de métricas/alertas
-configurados.
+  `body`. El `body` casi siempre trae más contexto que el `message`.
+- **Errores de actualización**: `UpdateError` con `causa: 'red' | 'json' | 'descarga' | 'instalacion'`.
+- **Errores de usuario**: se muestran con `Alert.alert`, no solo se loguean.
+- **Logcat de Android** (`adb logcat`) para lo que pasa por debajo de JS: permisos, cámara, crashes
+  nativos, el instalador del APK.
 
 ## Errores comunes y soluciones
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| **La app se cierra sola al abrir, sin error en Metro** | Versión de `react-native-worklets`/`reanimated` distinta a la que Expo Go trae compilada → `SIGSEGV` en `libworklets.so` | Restaurar los `overrides` de `package.json` y `npm install`. Ver *No tocar: los `overrides` de package.json* en `CLAUDE.md` |
-| Cambié `.env` y no pasó nada | Metro cachea variables `EXPO_PUBLIC_*` | `npx expo start -c` (caché limpia) |
-| `EXPO_PUBLIC_API_URL no está configurada` | `USE_MOCK=false` sin `API_URL`, o `.env` no existe | Verificar `.env` (copiado de `.env.example`) y reiniciar con `-c` |
-| Timeout / "El servidor no respondió a tiempo" en Android físico | `API_URL=http://localhost:...` — el teléfono no ve el localhost de la PC | `adb reverse tcp:PUERTO tcp:PUERTO` (se pierde al desconectar el cable), o usar la IP LAN. Ver *Backend corriendo en la PC de desarrollo* en `07-CONFIGURACION.md` |
-| Formulario no deja editar campos de cliente/equipo | Es esperado si `status === 'CORRECTO'` (§6) | Revisar `draft.status`; solo `CORRECCIÓN`/`NUEVO` habilitan edición |
-| Cliente se ve forzado a "BODEGA" y no se puede tocar | Estado del enfriador = "En Piso" (§12.2), comportamiento intencional | Cambiar el estado a otro valor para restaurar el cliente previo |
-| "Guardar censo" no hace nada visible | `validarDraft()` bloqueó por falta de estado del enfriador u otro campo obligatorio | Revisar el `Alert.alert` que debió aparecer; completar el campo faltante |
-| Historial/Dashboard no reflejan un censo recién guardado | Poco probable — `guardar()` llama `refrescar()` automáticamente | Verificar que `saveRegistro` no haya lanzado (revisar `try/catch` en `onGuardar`); pull-to-refresh en Historial como workaround manual |
-| Escáner no abre / cámara negra | Permiso de cámara denegado | Revisar permisos del SO para la app; `search.tsx` cae a captura manual o "Simular escaneo" (solo con `USE_MOCK`) |
-| Foto se ve como un cuadro de color en vez de la imagen real | Es una foto simulada (`mock://…`) porque no hubo permiso de cámara al capturarla | Revisar permisos; comportamiento esperado en emulador sin cámara |
-| GPS marca "(simulada)" | Sin permiso de ubicación o falló `getCurrentPositionAsync` | Revisar permisos de ubicación; `device.ts` cae a `gpsMock()` a propósito, nunca bloquea el censo |
-| `npm run check` falla con `✗ …` | Se rompió una regla de negocio al modificar `rules.ts` | Leer el mensaje (`esperado` vs `recibido`), corregir la función señalada en `src/lib/rules.ts` |
-| `tsc --noEmit` falla tras agregar un campo | Falta actualizar `mock.ts` y/o `http.ts` para implementar el nuevo método/campo del contrato | Implementar en ambos lados de `CensoApi` (regla dura del contrato) |
-| Exportar CSV/PDF no hace nada / error "no permite compartir archivos" | Dispositivo/emulador sin app para manejar el share sheet | Probar en dispositivo físico o revisar `Sharing.isAvailableAsync()` |
-| Acentos rotos al abrir el CSV en Excel | No debería pasar — `construirCsv()` antepone BOM | Confirmar que se está usando `construirCsv()` y no un CSV armado a mano |
+| **La app se cierra sola al abrir, sin error en Metro** | Versión de `react-native-worklets`/`reanimated` distinta a la que Expo Go trae compilada → `SIGSEGV` en `libworklets.so` | Restaurar los `overrides` de `package.json` y `npm install`. Diagnóstico en [06-DEPENDENCIAS.md](06-DEPENDENCIAS.md) |
+| Cambié `.env` y no pasó nada | Metro cachea las `EXPO_PUBLIC_*` | `npx expo start -c` |
+| `EXPO_PUBLIC_API_URL no está configurada` | `USE_MOCK=false` sin `API_URL`, o no existe `.env` | Copiar `.env.example` y reiniciar con `-c` |
+| **Banner rojo permanente aunque el backend responde** | El `reachabilityUrl` es `{API_URL}/health`: si a `API_URL` le falta el `/api`, o `/health` no existe, NetInfo lo lee como caída | Probar `curl {API_URL}/health` → debe dar 200. Ver [07-CONFIGURACION.md](07-CONFIGURACION.md) |
+| Banner ámbar "red inestable" | Alguna respuesta tardó ≥ 5 s | Es informativo; se limpia con la siguiente respuesta rápida |
+| Timeout en Android físico | `API_URL=http://localhost:…` — el teléfono no ve el localhost de la PC | `adb reverse tcp:PUERTO tcp:PUERTO`, o usar la IP LAN |
+| **400 al guardar un censo** | Enum mal serializado (`CORRECCIÓN` con acento, `EN_PISO` con guion bajo) o campo requerido vacío | El mensaje del 400 trae el detalle campo por campo (`client.ts` concatena `errors`). Los mapeos correctos están en `http.ts` |
+| **409 al guardar** | Esa serie ya se censó en la ronda vigente | Es el upsert del §8 resuelto del lado del servidor; no reintentar a ciegas |
+| El censo se guardó pero le faltan fotos | Una evidencia falló al subir; el censo NO se tumba a propósito | Buscar el `console.warn('No se pudo subir la evidencia …')` en Metro |
+| Las fotos del Historial salen rotas | El backend emite las URLs con un host que el teléfono no alcanza | Setear `EXPO_PUBLIC_IMG_URL` con el host alcanzable, o usar `adb reverse` |
+| Formulario no deja editar campos de cliente/equipo | Esperado si `status === 'CORRECTO'` (§6) | Solo `CORRECCIÓN`/`NUEVO` habilitan edición |
+| Cliente forzado a "BODEGA" e intocable | Estado = "En Piso" (§12.2), intencional | Cambiar el estado para restaurar el cliente previo |
+| **"Guardar censo" no hace nada visible** | `validarDraft()` cortó — lo más frecuente hoy es que **falte la foto de la placa** | Leer el `Alert.alert`; la placa es obligatoria desde la versión con foto obligatoria |
+| El `Select` de tipo de enfriador sale vacío | `TIPOENFRI` de FROG llegó con espacios/acentos raros y no empató | `normalizaTipo()` ya cubre lo conocido; si aparece una clave nueva, agregarla a `TIPOS_ENFRIADOR` (`src/api/types.ts`) |
+| Dashboard sin "Avance por CEDIS" | El backend no agrupa por CEDIS/tipo/marca; `mapResumen()` los deja vacíos y el bloque está comentado | Esperado. Ver [04-DATOS.md](04-DATOS.md) |
+| Historial ▸ En FROG / Faltantes salen vacíos | Sin `ruta` en sesión esos modos ni siquiera llaman al backend (`ruta ? … : []`) | Verificar la ruta capturada en el login |
+| Escáner no abre / cámara negra | Permiso de cámara denegado | `search.tsx` cae a captura manual; revisar permisos del SO |
+| Foto como cuadro de color | Es una foto simulada (`mock://…`) por falta de permiso de cámara | Esperado en emulador; esas fotos no se suben |
+| GPS marca "(simulada)" | Sin permiso de ubicación o falló `getCurrentPositionAsync` | `device.ts` cae a `gpsMock()` a propósito, nunca bloquea el censo |
+| **El modal de actualización nunca aparece** | Falla en silencio a propósito: servidor caído, `version.json` inválido, o `versionCode` remoto ≤ instalado | Probar `curl {UPDATE_URL}/version.json`; recordar que compara **`versionCode`**, no `versionName` |
+| "No se pudo abrir el instalador" | Falta el permiso de Android 8+ "instalar apps desconocidas" | Usar el botón del propio modal, que abre esos ajustes |
+| `npm run check` falla con `✗ …` | Se rompió una regla al modificar `rules.ts` o `version.ts` | Leer `esperado` vs `recibido` y corregir la función |
+| `tsc --noEmit` falla tras agregar un método al contrato | Falta implementarlo en `mock.ts` o en `http.ts` | Ambos lados de `CensoApi`, siempre |
 
-## Cómo debuggear localmente — pasos recomendados
+## Cómo depurar localmente — orden recomendado
 
-1. **Reproducir con mock** (`USE_MOCK=true`, default) para descartar que sea un problema de red o
-   backend — todo el flujo de negocio es reproducible sin conexión.
-2. **Aislar la regla de negocio**: si el bug parece de lógica (status, bloqueo de campos, En Piso,
-   cálculo de avance), reproducirlo como caso en `src/lib/rules.check.ts` primero — es más rápido
-   que recorrer la UI cada vez, y si se convierte en test permanente mejor.
-3. **Revisar el store correspondiente** antes que el componente: `draft.tsx` para el censo en
-   construcción, `records.tsx` para lo persistido, `session.tsx` para la ruta.
-4. **Para errores de red**: loguear temporalmente el `ApiError` completo (`status`, `body`) en el
-   `catch` de la pantalla — casi siempre el `body` trae más contexto que el `message` genérico.
-5. **Para hardware (GPS/cámara)**: recordar que `src/lib/device.ts` nunca lanza — si algo "no
-   funciona" ahí, revisar si cayó silenciosamente al fallback `mock: true` en vez de asumir un
-   crash.
-6. **`npx expo start -c`** como primer paso ante cualquier comportamiento raro relacionado con
-   variables de entorno o assets — la caché de Metro es la causa más común de "no debería pasar
-   esto".
+1. **Reproducir con mock** (`USE_MOCK=true`) para descartar red/backend: todo el flujo de negocio
+   funciona sin conexión.
+2. **Aislar la regla**: si el bug parece de lógica (status, bloqueo, En Piso, avance), escribirlo
+   primero como caso en `src/lib/rules.check.ts` — más rápido que recorrer la UI, y si queda como
+   test permanente, mejor.
+3. **Si es del backend**, loguear el `ApiError` completo (`status` + `body`) en el `catch` de la
+   pantalla: el `title`/`errors` de RFC 7807 dice exactamente qué campo rechazó.
+4. **Revisar el store antes que el componente**: `draft.tsx` (censo en construcción),
+   `session.tsx` (ruta). Ojo: `records.tsx` ya casi no alimenta a nadie.
+5. **Para hardware**: `device.ts` nunca lanza — si algo "no funciona", verificar si cayó
+   silenciosamente al fallback `mock: true`.
+6. **`npx expo start -c`** ante cualquier rareza con variables de entorno o assets.
+7. **Para crashes nativos**: `adb logcat -b crash -d` (el error no aparece en Metro).
+
+## Monitoreo
+
+No aplica: sin dashboards, métricas ni alertas. La única señal en campo es el banner de red y los
+`Alert.alert`.

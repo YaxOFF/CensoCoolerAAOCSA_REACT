@@ -2,69 +2,88 @@
 
 ## Estrategia de testing
 
-**Solo unitario, y solo sobre reglas de negocio puras.** No hay tests de integración, e2e, ni de
-componentes React. Esto es una decisión deliberada, no un vacío: `src/lib/rules.ts` concentra toda
-la lógica de negocio no trivial precisamente para que sea testeable sin React Native, sin Expo y sin
-un simulador — las pantallas son "solo cableado" y se validan manualmente en el dispositivo/Expo Go.
+**Solo unitario, y solo sobre código puro.** No hay tests de integración, e2e ni de componentes.
+Es deliberado: `src/lib/rules.ts` (reglas de negocio) y `src/lib/version.ts` (parseo del
+`version.json` remoto) concentran la lógica que puede romperse en silencio, precisamente para que
+sea verificable sin React Native, sin Expo y sin simulador. Las pantallas son cableado y se validan
+a mano en Expo Go / dispositivo.
 
 No hay cobertura objetivo formal (no hay Jest, no hay `--coverage`). La cobertura real es "las 7
-reglas de negocio del spec, cada una con al menos un caso feliz y sus edge cases conocidos".
+reglas del spec, cada una con su caso feliz y sus edge cases conocidos, más el parser de versión".
 
-## Cómo correr los tests
+## Cómo correr
 
 ```bash
 npm run check
 ```
 
-Equivale a `node --experimental-strip-types --no-warnings src/lib/rules.check.ts`. No hay watch
-mode ni filtros por nombre de test — es un script secuencial que corre de arriba a abajo y aborta
-en el primer `assert` fallido con un mensaje `✗ <descripción> esperado/recibido`. Éxito imprime
-`✓ reglas del censo OK`.
+Equivale a `node --experimental-strip-types --no-warnings src/lib/rules.check.ts`. Sin watch mode ni
+filtros: es un script secuencial que aborta en el primer assert fallido con
+`✗ <descripción> esperado/recibido`. Éxito imprime dos líneas:
 
-## Estructura de tests
+```
+✓ reglas del censo OK
+✓ version.json OK
+```
 
-Un único archivo: `src/lib/rules.check.ts`. No sigue ningún framework (`describe`/`it`); es una
-secuencia de imports + fixtures + `assert.equal`/`assert.deepEqual` planos, agrupados por comentario
-según la regla del spec que cubren (`/* Regla 1 (§5) — … */`).
+`scripts/release.sh` corre `npm run check` y `npm run typecheck` **antes** de compilar el APK, así
+que una regla rota corta el release.
 
-**Por qué no Jest**: `package.json` no declara ningún test runner. El proyecto usa
-`node --experimental-strip-types` para ejecutar TypeScript directo sin paso de compilación —
-mantiene el ciclo de feedback en milisegundos y cero dependencias de testing.
+## Estructura
 
-## Mocks y fixtures
-
-Todo vive dentro de `rules.check.ts`, no hay carpeta `__mocks__` ni `fixtures/`:
+Un único archivo: `src/lib/rules.check.ts`. Sin framework (`describe`/`it`): imports + fixtures +
+`assert.equal`/`assert.deepEqual` planos, agrupados por comentario según la regla del spec
+(`/* Regla 1 (§5) — … */`).
 
 - `assert` — implementación mínima propia (`equal`, `deepEqual`) porque `node:assert` no resuelve
   bajo la configuración de módulos de Expo.
-- `CATALOGOS` — catálogo reducido de prueba (no el de `mock.ts`).
-- `frog(numeroSerie, cedis?)` — factory de un `Enfriador` de prueba.
-- `censo(numeroSerie, overrides?)` — factory de un `RegistroCenso` de prueba con valores por
-  defecto razonables, sobreescribibles.
+- `CATALOGOS`, `frog(serie, cedis?)`, `censo(serie, overrides?)` — fixtures locales, no los del
+  mock.
+- No hay mocking de red ni de AsyncStorage porque el código bajo prueba no los usa.
 
-No hay mocking de red ni de AsyncStorage porque `rules.ts` no los usa — es intencional (ver
-`02-ARQUITECTURA.md`).
+**Por qué no Jest**: cero dependencias de testing y feedback en milisegundos ejecutando TypeScript
+directo, sin paso de compilación.
 
-## Tests más críticos ("guardianes" del proyecto)
+## Qué cubre exactamente
 
 | Cobertura | Qué protege |
 |---|---|
-| `resolverStatus()` (§5) | Que serie inexistente en FROG siempre resuelva `NUEVO`, y que sin validación explícita el status quede `null` (no se guarda prematuramente) |
-| `camposEditables()` (§6) | Que solo `CORRECTO` bloquee campos — un cambio accidental aquí desbloquearía o bloquearía mal todo el formulario |
-| `aplicarEnPiso()` (§12.2) | El caso más sutil del proyecto: que el cliente original se respalde una sola vez y no se sobrescriba con `'BODEGA'` si el usuario entra dos veces seguidas a "En Piso" — cubierto explícitamente como caso propio |
-| `validarDraft()` (§12.1) | Que no se pueda guardar sin serie, sin status o sin estado del enfriador |
-| `upsertRegistro()` (§8) | Que guardar la misma serie **reemplace**, nunca duplique, y que no mute el arreglo original (inmutabilidad) |
-| `construirResumen()` / `construirReporte()` (§9, §10) | El cálculo de avance y el universo del reporte — incluye el caso donde los equipos `NUEVO` no descuentan pendientes porque no estaban en FROG (la demo HTML original tenía este cálculo duplicado e inconsistente entre pantallas; aquí se unificó) |
-| `construirCsv()` | BOM presente (acentos en Excel) y escape correcto de comillas dobles en observaciones |
+| `resolverStatus()` (§5) | Serie inexistente ⇒ `NUEVO`; sin validación explícita el status queda `null` |
+| `camposEditables()` (§6) | Que solo `CORRECTO` bloquee campos |
+| `aplicarEnPiso()` (§12.2) | El caso más sutil: entrar **dos veces** a "En Piso" no debe pisar el respaldo del cliente con `BODEGA` |
+| `validarDraft()` (§7, §12.1) | Sin serie, sin status, sin estado **y sin foto de Placa** (incluye el caso de una `Placa` con `uri` vacía, y que una foto Frontal no alcanza) |
+| `upsertRegistro()` (§8) | Reemplaza por serie, nunca duplica, y no muta el arreglo original |
+| `construirResumen()` (§9) | El avance: `censados` cuenta todos los levantamientos, pero el porcentaje se calcula solo contra el universo de FROG — los `NUEVO` no descuentan pendientes. La distribución muestra el catálogo completo aunque esté en cero |
+| `construirReporte()` (§10) | Censados + pendientes, y que los pendientes salgan con `status: ''` |
+| `construirCsv()` | BOM presente (acentos en Excel) y escape correcto de comillas dobles |
+| `normalizarVersion()` | JSON no-objeto, `versionCode` faltante o no entero, `apkUrl` faltante ⇒ `null`; relativa cuelga del servidor sin doble diagonal; absoluta se respeta; `forceUpdate` solo con booleano `true` (la cadena `"true"` no cuenta) |
 
 ## Qué NO está cubierto
 
-- Pantallas (`app/**/*.tsx`) — sin tests, se validan manualmente en Expo Go/dispositivo.
-- `src/lib/device.ts` (GPS/cámara) — depende de APIs nativas, no es practicable con
-  `node --experimental-strip-types`; su contrato de resiliencia (nunca lanza) es la garantía en su
-  lugar.
-- `src/api/http.ts` — sin backend real desplegado, no hay contra qué probarlo end-to-end.
-- Componentes de `src/ui/index.tsx` — sin snapshot tests ni render tests.
+- **Pantallas** (`app/**/*.tsx`) — sin tests; se validan manualmente.
+- **`src/api/http.ts`** — ni un assert, y es donde vive todo el conocimiento del backend: los
+  mapeos de enums (`CORRECCIÓN`→`CORRECCION`, `En Piso`→`EN PISO`), `normalizaTipo()`,
+  `mapResumen()`, la paginación de `getReporte()`. Son funciones puras y **serían trivialmente
+  testeables** si se exportaran. `[TODO: hoy son privadas del módulo; exportarlas y cubrirlas es el
+  siguiente paso obvio de testing.]`
+- **`src/api/client.ts`** — el cálculo del estado de red y `mensajeDeError()` (RFC 7807).
+- **`src/lib/device.ts`** — depende de APIs nativas; su contrato de resiliencia (nunca lanza) es la
+  garantía en su lugar.
+- **`src/store/*`** — transiciones del draft, guard de sesión.
+- **Componentes de `src/ui/`** — sin snapshot ni render tests.
 
-Si se agrega Jest/RNTL en el futuro, el candidato natural es cubrir primero `app/censo/form.tsx`
-(la pantalla con más lógica cableada) y `src/store/draft.tsx` (transiciones de estado del draft).
+Si algún día se agrega Jest/RNTL, los candidatos por valor son: los mapeos de `http.ts` (primero),
+`app/censo/form.tsx` y `src/store/draft.tsx`.
+
+## Checklist manual antes de publicar una versión
+
+No está automatizado; es lo que conviene recorrer en dispositivo con `USE_MOCK=false`:
+
+1. Login con una ruta real → los KPIs de Home traen números.
+2. Censar una serie que **sí** está en FROG → validar "correcta" → campos bloqueados → guardar con
+   foto de placa → aparece en Historial ▸ Censados con sus evidencias visibles.
+3. Censar una serie inventada → status `NUEVO` → campos abiertos → guardar.
+4. Elegir "En Piso" → el cliente pasa a `BODEGA` y se bloquea; cambiar de estado lo restaura.
+5. Historial ▸ En FROG y ▸ Faltantes traen filas para la ruta.
+6. Reporte: generar Excel y PDF, abrir y descargar.
+7. Apagar el backend → el banner rojo aparece; encenderlo → desaparece.

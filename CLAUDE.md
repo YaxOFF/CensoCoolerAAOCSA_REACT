@@ -8,6 +8,31 @@ guarda el registro dejándolo como `Censado = SI`.
 Hoy corre con **datos simulados**. El backend real todavía no existe; toda la app está construida
 para que conectarlo sea cambiar un archivo de entorno. Ver *Conectar el backend real* abajo.
 
+> **Nota de estado (2026-08-05):** el backend **sí existe** ya, y `src/api/http.ts` está escrito
+> contra sus endpoints reales (coolers, evidencias, reportes generados en el servidor). Lo que
+> sigue en este archivo describe el contrato y los gotchas acordados y sigue siendo válido; la
+> sección *Fuera de alcance* de abajo es la que quedó parcialmente atrás. Detalle actualizado
+> endpoint por endpoint en `/docs/05-API.md`.
+
+## Instrucciones para Claude
+
+**Antes de buscar en el código o hacer suposiciones, consulta siempre la documentación en `/docs`.**
+
+- Para entender la arquitectura y las capas, lee `/docs/02-ARQUITECTURA.md`.
+- Para el árbol de carpetas y los archivos clave, `/docs/01-ESTRUCTURA.md`.
+- Para el estado global (session, records, draft, catálogos, resumen), `/docs/02-ARQUITECTURA.md`
+  y `/docs/01-ESTRUCTURA.md`.
+- Para los endpoints reales, sus mapeos y sus gotchas, `/docs/05-API.md`.
+- Para el modelo de datos y las dos nomenclaturas de color, `/docs/04-DATOS.md`.
+- Para configuración y variables de entorno, `/docs/07-CONFIGURACION.md`.
+- Para compilar y publicar una versión, `/docs/11-BUILD-Y-ACTUALIZACIONES.md` y `COMPILAR.md`.
+- Si necesitas ayuda rápida, comienza por `/docs/README.md`.
+
+`/docs` es la fuente de verdad de **arquitectura** (generada leyendo el código real; los `[TODO]`
+marcan huecos no confirmados). Úsala para responder preguntas, generar código coherente con la
+arquitectura existente, y evitar releer todo el repo desde cero cada sesión. Las **reglas de
+negocio** siguen viviendo en este archivo y en `src/lib/rules.ts`.
+
 ## Origen
 
 Es el port 1:1 de una demo en HTML/CSS/JS que vive en `../AppCensoEnfriadores_DEMO/`:

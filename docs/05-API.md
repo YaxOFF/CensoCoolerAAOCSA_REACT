@@ -1,102 +1,199 @@
 # 📡 Contratos Públicos
 
-No hay servidor propio en este repo: `src/api/contract.ts` define el contrato que la app espera de
-"algo" — hoy `mock.ts` (AsyncStorage), mañana `http.ts` (fetch real). Este documento cubre ambos: el
-contrato TypeScript y los endpoints REST que `http.ts` ya asume.
+No hay servidor en este repo: `src/api/contract.ts` define el contrato que la app espera de "algo"
+— `mock.ts` (AsyncStorage) o `http.ts` (fetch real). Este documento cubre los dos: el contrato
+TypeScript y los endpoints REST que `http.ts` ya llama.
 
 ## El contrato: `interface CensoApi` (`src/api/contract.ts`)
 
-| Método | Firma | Endpoint esperado | Notas |
+| # | Método | Firma | Endpoint real |
 |---|---|---|---|
-| `lookupEnfriador` | `(numeroSerie: string) => Promise<Enfriador \| null>` | `GET /enfriadores/:numeroSerie` | `404` → `null` → status `NUEVO` (§5) |
-| `listRegistros` | `() => Promise<RegistroCenso[]>` | `GET /censos` | Alimenta Historial |
-| `saveRegistro` | `(input: RegistroCensoInput) => Promise<RegistroCenso>` | `POST /censos` | Upsert por serie (§8); el servidor decide `censado` |
-| `getResumen` | `() => Promise<Resumen>` | `GET /censos/resumen` | Indicadores del Dashboard (§9) |
-| `getReporte` | `() => Promise<Reporte>` | `GET /censos/reporte` | Universo completo, censados + pendientes (§10) |
-| `subirFoto` | `(uri: string, tipo: TipoFoto) => Promise<{id, uri}>` | `POST /censos/fotos` (multipart) | Solo para fotos no simuladas |
-| `getCatalogos` | `() => Promise<Catalogos>` | `GET /catalogos` | Tipos, estados, CEDIS, rutas, marcas |
-| `resetDemo` | `() => Promise<void>` | — | Solo mock; no-op en `httpApi` |
+| 1 | `lookupEnfriador` | `(numeroSerie) => Promise<Enfriador \| null>` | `GET /frog/enfriadores/:serie` |
+| 2 | `listRegistros` | `() => Promise<RegistroCenso[]>` | `GET /censos` |
+| 3 | `listCoolers` | `(q?: CoolersQuery) => Promise<CoolersPage>` | `GET /coolers?page&pageSize&serie&ruta` |
+| 4 | `listFrog` | `(ruta) => Promise<FrogRow[]>` | `POST /frog/enfriadores` |
+| 5 | `listFaltantes` | `(ruta) => Promise<FrogRow[]>` | `GET /coolers/faltantes?rutaIni&rutaFin` |
+| 6 | `saveRegistro` | `(input) => Promise<RegistroCenso>` | `POST /coolers` + `POST /coolers/:id/evidencias` |
+| 7 | `getResumen` | `(ruta?) => Promise<Resumen>` | `GET /censos/resumen` + `GET /coolers/resumen` |
+| 8 | `getReporte` | `() => Promise<Reporte>` | *(se arma paginando `/coolers`)* |
+| 9 | `generarReporte` | `(formato, ruta) => Promise<ReporteArchivo>` | `POST /reportes/coolers[/excel]` |
+| 10 | `getCatalogos` | `() => Promise<Catalogos>` | `GET /catalogos` *(no existe aún)* |
+| 11 | `resetDemo` | `() => Promise<void>` | — (no-op en `httpApi`) |
 
-**Regla de extensión**: si una pantalla necesita un dato nuevo del "servidor", se agrega el método
-aquí primero. TypeScript obliga entonces a implementarlo tanto en `mock.ts` como en `http.ts` (no
-compila si falta uno de los dos).
+**Regla de extensión**: si una pantalla necesita un dato nuevo del servidor, se agrega el método
+aquí primero. TypeScript obliga entonces a implementarlo en `mock.ts` **y** en `http.ts` (no compila
+si falta uno).
+
+Fuera del contrato hay dos llamadas HTTP más, a propósito:
+
+- `GET {API_URL}/health` — lo sondea NetInfo para el banner de red. Ninguna pantalla lo consume.
+- `GET {UPDATE_URL}/version.json` + descarga del APK — `src/api/updates.ts`, otro servidor.
 
 ## Detalle por endpoint (implementación HTTP real)
 
-### `GET /enfriadores/:numeroSerie`
-- **Implementación**: `src/api/http.ts:23`.
+### `GET /frog/enfriadores/:serie` — `lookupEnfriador`
+
 - **Entrada**: serie normalizada (`trim().toUpperCase()`, URL-encoded).
-- **Respuesta 200**: `Enfriador` (ver `04-DATOS.md`).
-- **Respuesta 404**: se traduce a `null` (no es tratado como error de app — significa serie nueva).
-- **Otros errores**: propagan como `ApiError`.
+- **Respuesta 200**: **un array** de `FrogRow`. Se toma la primera fila (§4).
+- **Array vacío o 404** ⇒ `null` ⇒ status `NUEVO` (§5). El 404 se captura y no propaga.
+- **Mapeo** (`mapFrog`): `IDCLIENTE`→`numeroCliente`, `RAZONSOCIAL`→`nombreCliente`,
+  `UDN`→`cedis`, `CALLE NUMERO, COLONIA`→`direccion`; y la fila cruda queda en `frog`.
 
-### `GET /censos`
-- **Respuesta 200**: `RegistroCenso[]`.
+> ⚠️ **`TIPOENFRI` llega sucio** ("PENAFI ", "peñafi"). `normalizaTipo()` compara sin acentos ni
+> espacios contra `TIPOS_ENFRIADOR` y devuelve la clave del catálogo. Sin eso, el `Select` de tipo
+> aparece vacío aunque FROG sí haya mandado el dato.
 
-### `POST /censos`
-- **Body**: `RegistroCensoInput` (JSON, `Content-Type: application/json`).
-- **Respuesta 200/201**: `RegistroCenso` completo (con `censado` decidido por el servidor).
-- **Semántica esperada del servidor**: upsert por `numeroSerie` — reemplaza si existe, agrega si
-  no (§8). El cliente confía en que el servidor implementa esto; el mock lo hace vía
-  `upsertRegistro()`.
+### `GET /censos` — `listRegistros`
 
-### `GET /censos/resumen`
-- **Respuesta 200**: `Resumen` — si el backend no calcula agregados, se puede construir en
-  `http.ts` reusando `construirResumen()` de `src/lib/rules.ts` a partir de `listRegistros()`
-  (mismo patrón que usa el mock).
+- **Respuesta 200**: `RegistroCenso[]`, sin mapeo.
+- Lo llama `RecordsProvider` al montar la app.
 
-### `GET /censos/reporte`
-- **Respuesta 200**: `Reporte` (`{filas, resumen}`) — mismo comentario que arriba: si no hay
-  endpoint dedicado, `construirReporte()` lo arma del lado del cliente.
+> ⚠️ `[TODO: confirmar que `GET /censos` existe en el backend actual.` `http.ts` lo llama sin
+> mapeo ni fallback, y ningún otro método del contrato lo usa. Si el backend no lo tiene, cada
+> arranque hace una llamada que falla en silencio dentro del provider.]`
 
-### `POST /censos/fotos` (multipart/form-data)
-- **Body**: `FormData` con campos `tipo` (string) y `archivo` (binario, `image/jpeg`).
-- **Respuesta 200**: `{ id: string, uri: string }` — la URL/identificador definitivo de la foto.
-- **Nota de implementación**: React Native construye el objeto de archivo como
-  `{ uri, name, type }` dentro del `FormData`; no se serializa a JSON ni se envía
-  `Content-Type: application/json` en esta llamada (`src/api/client.ts` lo detecta vía la opción
-  `form`).
+### `GET /coolers` — `listCoolers`
 
-### `GET /catalogos`
-- **Respuesta 200**: `Catalogos`.
+- **Query**: `page` (default 1), `pageSize` (default 20, **máximo 100** del backend), `serie`
+  (parcial), `ruta` (exacta). Los vacíos no se mandan.
+- **Respuesta 200**: `CoolersPage`.
+- **Post-proceso**: a cada `evidencia.url` se le reapunta el host si hay `EXPO_PUBLIC_IMG_URL`.
+
+### `POST /frog/enfriadores` — `listFrog`
+
+- **Body**: `{udnIni:"00", udnFin:"99", rutaIni: ruta, rutaFin: ruta}` — la UDN va abierta porque la
+  ruta ya identifica al inspector.
+- **404** ⇒ lista vacía (FROG no tiene equipos en el rango; para la pantalla no es un error).
+
+### `GET /coolers/faltantes` — `listFaltantes`
+
+- **Query**: `rutaIni`, `rutaFin` (ambos = la ruta del inspector).
+- **Respuesta 200**: `{items: FrogRow[]}` — se devuelve solo `items`.
+
+### `POST /coolers` — `saveRegistro` (paso 1)
+
+- **Body** (`mapAlta`): la fila de FROG como base, pisada por lo que editó el inspector.
+
+  ```ts
+  // src/api/http.ts — mapAlta()
+  serie: input.numeroSerie,
+  udn: input.cedis,
+  ruta: input.ruta,
+  idCliente: input.numeroCliente,
+  razonSocial: input.nombreCliente,
+  calle: input.direccion,
+  tipoEnfri: input.tipo,
+  tipoRegistro: STATUS_A_TIPO_REGISTRO[input.status],   // CORRECCIÓN → CORRECCION
+  status: ESTADO_A_ENUM[input.estadoEnfriador],         // En Piso → "EN PISO"
+  latitud: input.lat,
+  longitud: input.lng,
+  ```
+
+- **Respuesta**: `Cooler` con su `id` — necesario para subir las evidencias.
+- **409**: serie ya censada en la ronda vigente. El `title` del backend se muestra tal cual.
+
+> ⚠️ Los dos enums son **cerrados**: `'CORRECCIÓN'` con acento o `'EN_PISO'` con guion bajo
+> responden **400**. Los mapeos `STATUS_A_TIPO_REGISTRO` y `ESTADO_A_ENUM` son obligatorios, no
+> cosméticos.
+
+### `POST /coolers/:id/evidencias` — `saveRegistro` (paso 2, una por foto)
+
+- **multipart/form-data**: campo `file` (la imagen, `image/jpeg`) + parámetro `pie`.
+- **No usa `fetch` + `FormData`**: en Android eso falla con "Network request failed" al adjuntar un
+  `file://` del ImagePicker. Se usa `uploadAsync` de `expo-file-system/legacy`, que arma el
+  multipart en nativo.
+- **Respuesta**: `{id, url}` — la `url` reemplaza la `uri` local de la foto.
+- El servidor re-codifica a JPEG ≤1600px, así que la app no comprime.
+- **Las fotos `mock://` no se suben** (no hay archivo detrás).
+- **Si una evidencia falla**: `console.warn` y se conserva la uri local; el censo NO se tumba.
+
+### `GET /censos/resumen` + `GET /coolers/resumen` — `getResumen`
+
+Dos llamadas en paralelo, cada una con su `.catch(() => null)`; solo si fallan **las dos** se lanza.
+
+| Endpoint | Aporta | Query |
+|---|---|---|
+| `/censos/resumen` | `totalFrog`, `censados`, `faltantes`, `folio` — el avance contra FROG | `?ruta=` |
+| `/coolers/resumen` | `tipoRegistro.{correcto,nuevo,correccion}` y `status.{usadoDisponible,descompuesto,obsoleto,enPiso}` | `?rutaIni=&rutaFin=` |
+
+> ⚠️ **`rutaIni` sin `rutaFin` significa "de esa ruta en adelante"**: hay que mandar las dos para
+> acotar a una sola ruta. Y el `total` de `/coolers/resumen` incluye los `NUEVO` (que no estaban en
+> FROG), así que **no sirve como "censados"** para el porcentaje de avance; solo se usa de respaldo
+> si `/censos/resumen` falló.
+
+### `getReporte` — sin endpoint propio
+
+`/censos/reporte` **no existe** (404). `getReporte()` arma el reporte del lado del cliente
+paginando `/coolers` de 100 en 100, hasta 50 páginas. Sin un endpoint que liste FROG por ruta en
+ese punto, **no incluye pendientes** (§10): sale solo con lo censado.
+
+### `POST /reportes/coolers` y `POST /reportes/coolers/excel` — `generarReporte`
+
+- **Body**: `{udnIni:"00", udnFin:"99", rutaIni: ruta, rutaFin: ruta, folio: null}`.
+- **Respuesta**: `ReporteArchivo` — **la URL del archivo, no el binario**.
+- La URL sale del mismo Nginx que las fotos, así que también se le reapunta el host con
+  `EXPO_PUBLIC_IMG_URL`.
+
+### `GET /catalogos` — `getCatalogos`
+
+No existe todavía. `http.ts` arma una base local (`TIPOS_ENFRIADOR` + `ESTADOS_ENFRIADOR`, con
+`cedis`, `rutas` y `marcas` vacíos) e intenta el fetch: si responde, hace merge; si falla, devuelve
+la base. **Los estados no pueden faltar**: sin ellos no hay `Select` y no se puede guardar (§12.1).
+
+### `GET /health` — fuera del contrato
+
+Responde `{status: "ok"}`; a `client.ts` le basta el **200**. Es el `reachabilityUrl` de NetInfo.
+
+## Métodos del contrato que ninguna pantalla usa
+
+| Método | Quién lo llama hoy |
+|---|---|
+| `listRegistros` | Solo `RecordsProvider`, cuyo `registros` solo se usa como semilla del GPS simulado |
+| `getReporte` | Nadie en `app/`. Existe en ambas implementaciones y en `rules.check.ts` |
+
+Junto con `construirReporte()`, `construirCsv()` y `COLUMNAS_REPORTE` (`src/lib/rules.ts`), son el
+remanente del reporte que antes se armaba en el cliente. Siguen verificados por `npm run check`, así
+que no están rotos — pero tampoco están en ningún camino de la UI.
+`[TODO: decidir si se borran o si el reporte cliente vuelve como fallback cuando el servidor no
+puede generar el archivo.]`
 
 ## Autenticación y autorización
 
-- **Estado actual**: no hay autenticación real. La "sesión" es solo la ruta capturada en
-  `src/store/session.tsx`, persistida en `AsyncStorage`. Fuera de alcance por decisión de producto
-  (ver `CLAUDE.md`).
-- **Mecanismo ya preparado para cuando exista**: `src/api/client.ts` expone
-  `setAuthToken(token: string | null)`; cualquier llamada posterior via `request()` agrega
-  `Authorization: Bearer <token>`. El punto de integración sería `src/store/session.tsx` al
-  implementar login real.
-- **Errores 401/403**: `client.ts` los traduce a `'Sesión no válida. Vuelve a ingresar tu ruta.'`.
+- **No hay login real**: la "sesión" es la ruta capturada, persistida en `AsyncStorage`.
+- **El token sí viaja**: `client.ts` arranca con `process.env.EXPO_PUBLIC_API_TOKEN` y lo manda como
+  `Authorization: Bearer …` en todas las llamadas (incluidas las subidas, vía `getAuthToken()`).
+  `setAuthToken(token)` lo reemplaza en caliente cuando exista auth real; el punto de integración
+  es `src/store/session.tsx`.
+- **401/403**: `client.ts` los traduce a `'Sesión no válida. Vuelve a ingresar tu ruta.'`.
 
-## Validaciones, sanitización, rate limiting
-
-- **Del lado del cliente**: `validarDraft()` (§12.1) exige `numeroSerie`, `status` y
-  `estadoEnfriador` antes de intentar `saveRegistro`. No hay más validación de forma (regex,
-  longitud) — se asume que el backend real validará server-side.
-- **Sanitización de CSV**: `construirCsv()` (`src/lib/rules.ts:183`) escapa comillas dobles y
-  antepone BOM UTF-8, para prevenir corrupción del archivo al abrir en Excel (no es sanitización
-  de seguridad, es de formato).
-- **Sanitización HTML del PDF**: `escapeHtml()` en `src/lib/export.ts:38` escapa `& < > "` antes
-  de interpolar valores del reporte en el HTML que se imprime a PDF — previene que observaciones
-  con esos caracteres rompan el layout.
-- **Rate limiting**: no implementado; no aplica del lado del cliente. Sería responsabilidad del
-  backend real.
+> ⚠️ **El token del `.env` queda embebido y legible dentro del APK.** Las variables `EXPO_PUBLIC_*`
+> se inlinean en el bundle al compilar: no es un secreto. Ver [07-CONFIGURACION.md](07-CONFIGURACION.md).
 
 ## Manejo de errores uniforme (`src/api/client.ts`)
 
-Toda llamada HTTP pasa por `request<T>()`, que:
-- Aplica **timeout de 15s** con `AbortController`.
-- Traduce **cualquier fallo** (red, timeout, HTTP no-2xx) a `ApiError` con `message`, `status` y
-  `body` opcional.
-- Prioriza el `message` que venga del cuerpo de la respuesta del servidor si existe.
-- Da mensajes genéricos en español para 401/403, 404, 5xx y timeout.
-- Si `EXPO_PUBLIC_API_URL` no está configurada, lanza `ApiError` inmediatamente sin intentar el
-  fetch — evita errores de red confusos cuando simplemente falta configuración.
+Toda llamada pasa por `request<T>()`, que:
+
+- Aplica **timeout de 15 s** con `AbortController`.
+- Traduce cualquier fallo (red, timeout, HTTP no-2xx) a `ApiError` con `message`, `status` y `body`.
+- Actualiza el estado de red (ver [02-ARQUITECTURA.md](02-ARQUITECTURA.md) § *Detección de red*).
+- Si `EXPO_PUBLIC_API_URL` está vacía, lanza `ApiError` de inmediato sin intentar el fetch.
+
+El backend responde **RFC 7807** (`{type, title, status, detail}`), no `{message}`. `mensajeDeError()`
+busca en este orden:
+
+1. `errors` — los 400 de validación traen el detalle campo por campo; se concatenan (el `title`
+   genérico "One or more validation errors occurred." no le sirve a nadie).
+2. `detail` → `message` → `title`.
+3. Mensajes propios en español para 401/403, 404 y 5xx (esos vienen con body vacío).
+
+## Validaciones del cliente
+
+- `validarDraft()` (§7, §12.1) exige serie, `status`, `estadoEnfriador` y foto de `Placa` antes de
+  `saveRegistro`. No hay validación de formato (regex, longitud): se asume server-side.
+- `normalizarVersion()` (`src/lib/version.ts`) valida el `version.json` remoto — `versionCode`
+  entero > 0 y `apkUrl` no vacía — antes de usarlo. Es un borde de confianza explícito.
+- `construirCsv()` escapa comillas dobles y antepone BOM UTF-8 (formato, no seguridad).
 
 ## Webhooks / eventos externos
 
-No aplica. La app no escucha ni emite webhooks; toda comunicación es request/response síncrono
-desde el cliente.
+No aplica. Toda comunicación es request/response iniciado por el cliente.

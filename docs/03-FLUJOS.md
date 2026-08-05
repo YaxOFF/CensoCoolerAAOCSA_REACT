@@ -1,7 +1,7 @@
 # 🔀 La Lógica en Movimiento
 
-Tres flujos de negocio principales: **sesión/login**, **censar un equipo** (el corazón de la app) y
-**reporte corporativo**.
+Cuatro flujos: **sesión/login**, **censar un equipo** (el corazón de la app), **reporte
+corporativo** y **auto-actualización del APK**.
 
 ---
 
@@ -10,29 +10,25 @@ Tres flujos de negocio principales: **sesión/login**, **censar un equipo** (el 
 ### Descripción
 
 La ruta del inspector hace las veces de identidad. No hay contraseña ni backend de auth: capturar
-una ruta y guardarla localmente basta para "entrar". Existe para que un inspector en campo no
-pierda tiempo con credenciales — es una decisión de producto explícita (ver
+una ruta y guardarla localmente basta para "entrar". Decisión de producto explícita (ver
 `CLAUDE.md` § *Fuera de alcance por ahora*).
 
-### Actores
-
-- Usuario (inspector de campo).
-- `AsyncStorage` (persistencia local de la ruta).
+La ruta no es solo cosmética: **acota casi todo lo que la app consulta** — `listCoolers({ruta})`,
+`listFrog(ruta)`, `listFaltantes(ruta)`, `getResumen(ruta)` y `generarReporte(formato, ruta)`.
 
 ### Paso a paso técnico
 
 1. `app/_layout.tsx` monta `SessionProvider` (`src/store/session.tsx`), que al arrancar lee
    `censo_ruta` de `AsyncStorage` (`cargando: true` mientras tanto, para no parpadear el login).
-2. `Navegacion()` dentro de `_layout.tsx` compara `ruta` contra el segmento de ruta actual: sin
-   `ruta` y no estás en `/login` → `router.replace('/login')`. Con `ruta` y estás en `/login` →
-   `router.replace('/')`.
+2. `Navegacion()` compara `ruta` contra el segmento actual: sin `ruta` y fuera de `/login` →
+   `router.replace('/login')`. Con `ruta` y dentro de `/login` → `router.replace('/')`.
 3. `app/login.tsx` captura el texto, valida que no esté vacío (`Alert.alert` si lo está) y llama
    `entrar(ruta)`.
-4. `entrar()` normaliza (`trim().toUpperCase()`), persiste en `AsyncStorage` y actualiza el
-   estado — lo que dispara el `useEffect` de `Navegacion()` y redirige a `/`.
-5. `salir()` (botón "Cambiar ruta" en Home) borra la clave y vuelve a `/login`.
-
-### Diagrama de secuencia
+4. `entrar()` normaliza (`trim().toUpperCase()`), persiste y actualiza el estado — lo que dispara
+   el `useEffect` de `Navegacion()`.
+5. `usuario` se deriva de la ruta: `inspector.${ruta.toLowerCase()}`. Es lo que se graba en el
+   registro (§12.3).
+6. `salir()` (botón "Cambiar ruta" en Home) borra la clave y vuelve a `/login`.
 
 ```mermaid
 sequenceDiagram
@@ -54,203 +50,209 @@ sequenceDiagram
 
 ### Edge cases
 
-- Ruta vacía → `Alert.alert('Falta la ruta', …)`, no se guarda nada.
-- `cargando = true` durante la lectura inicial de `AsyncStorage` → se muestra `<Loading>` en vez
-  de parpadear entre login y home.
-- `usuario` derivado de la ruta (`inspector.${ruta.toLowerCase()}`) es el que se graba en cada
-  registro censado (§12.3) — no hay concepto de usuario separado de la ruta.
-
-### Estados
-
-`cargando` → (`sin ruta` ⇄ `con ruta`). No hay más estados; es binario.
+- Los chips de rutas sugeridas en el login solo aparecen si `catalogos.rutas` trae algo. Contra el
+  backend real **no aparecen**: `getCatalogos()` de `http.ts` devuelve `rutas: []` porque
+  `/catalogos` no existe todavía.
+- No hay validación de formato de ruta: cualquier texto no vacío entra.
 
 ---
 
 ## Flujo 2 — Censar un equipo (search → result → form → done)
 
-### Descripción
-
-El flujo central de la app. Cubre las reglas §4, §5, §6, §7, §12.1, §12.2, §12.3 y §8 del spec.
-Existe para levantar en campo, con evidencia verificable (foto + GPS), el estado real de cada
-enfriador y decidir si su registro en FROG es correcto, necesita corrección, o es un equipo nuevo.
-
-### Actores
-
-- Usuario (inspector).
-- FROG (base corporativa, vía `api.lookupEnfriador`) — simulada en `src/api/mock.ts`.
-- Hardware del teléfono: cámara (`expo-camera`, `expo-image-picker`) y GPS (`expo-location`).
-
 ### Paso a paso técnico
 
-**1. Búsqueda — `app/(tabs)/search.tsx`**
-- Escaneo real con `CameraView` (`expo-camera`) o captura manual del número de serie.
-- `consultar()` llama `api.lookupEnfriador(serie)`.
-- `iniciar(serie, enfriador)` de `useDraft()` (`src/store/draft.tsx`) crea el `Draft`:
-  si `enfriador` es `null` → `status: 'NUEVO'`, `esNuevo: true` (regla §5, ya resuelta aquí).
-  Si existe → `status: null` (pendiente de validar).
-- `router.push('/censo/result')`.
-
-**2. Resultado — `app/censo/result.tsx`**
-- Si `esNuevo`, se explica que todos los campos quedan abiertos y se puede continuar directo.
-- Si no, un `Segmented` pide "¿la información es correcta?" → `ok` / `fix`.
-- Cada elección llama `resolverStatus(true, v)` de `src/lib/rules.ts` (regla §5) y actualiza
-  `draft.status` a `'CORRECTO'` o `'CORRECCIÓN'`.
-- Botón "Continuar" habilitado solo cuando hay status resuelto (`listo`).
-
-**3. Formulario — `app/censo/form.tsx`** (el corazón)
-- `camposEditables(draft.status)` (regla §6): `CORRECTO` bloquea los campos de FROG;
-  `CORRECCIÓN`/`NUEVO` los abren.
-- Selector de "Estado del enfriador" (regla §12.1, siempre habilitado, obligatorio). Al elegir
-  `'En Piso'`, `cambiarEstado()` llama `aplicarEnPiso()` (regla §12.2): fuerza
-  `numeroCliente`/`nombreCliente` a `'BODEGA'` y los bloquea, guardando el cliente previo en
-  `previoCliente` para poder restaurarlo si el usuario cambia de estado otra vez.
-- Evidencia fotográfica: `capturarFoto(tipo)` llama `tomarFoto()` de `src/lib/device.ts` (regla
-  §7 — 3 tipos: Frontal, Placa, Fachada). Tocar una foto ya tomada la quita.
-- GPS: botón opcional "Obtener ubicación" (`obtenerGps()`); si el usuario no lo toca, se obtiene
-  automáticamente al guardar (regla §12.3).
-- `onGuardar()`:
-  1. `validarDraft()` (regla §12.1) — si falla, `Alert.alert` y no continúa.
-  2. Resuelve GPS si falta.
-  3. Sube fotos no simuladas con `api.subirFoto()`.
-  4. Llama `guardar(input)` de `useRecords()` → `api.saveRegistro()` (regla §8: upsert por serie,
-     `censado: 'SI'`).
-  5. Guarda el registro en `ultimo` (`setUltimo`), limpia el draft, navega a `/censo/done`.
-
-**4. Confirmación — `app/censo/done.tsx`**
-- Si no hay `ultimo` (p. ej. entrada directa sin pasar por el flujo), redirige a `/`.
-- Muestra serie, status, estado, cliente, GPS, cantidad de fotos y `Censado = SI`.
-- Botones para censar otro equipo o ir a Historial.
-
-### Diagrama de secuencia
+1. **`app/(tabs)/search.tsx`** — el inspector escanea con `CameraView` (`expo-camera`, tipos
+   `code128`, `code39`, `ean13`, `ean8`, `upc_a`, `qr`) o teclea la serie. Sin permiso de cámara
+   ofrece captura manual (y "Simular escaneo" solo con `USE_MOCK`).
+2. `api.lookupEnfriador(serie)` → `GET /frog/enfriadores/:serie`. Devuelve un **array**; se toma la
+   primera fila (§4). Array vacío o `404` ⇒ `null` ⇒ el censo nace `NUEVO` (§5).
+3. `iniciar(serie, enfriador)` de `useDraft()` crea el draft en memoria. Si `enfriador` es `null`,
+   el `status` ya queda decidido como `'NUEVO'` y `esNuevo: true`.
+4. **`app/censo/result.tsx`** — muestra lo que devolvió FROG. Si existía, pide la validación
+   (`Segmented`: "Sí, correcta" / "No, corregir") y llama `resolverStatus(true, v)` →
+   `CORRECTO` / `CORRECCIÓN` (§5). Si era nuevo, no pregunta nada.
+5. **`app/censo/form.tsx`** — `camposEditables(status)` decide si los datos de FROG están
+   bloqueados (§6: solo `CORRECTO` bloquea). El estado del enfriador siempre está habilitado
+   (§12.1).
+6. Elegir **"En Piso"** dispara `aplicarEnPiso()`: fuerza `numeroCliente` y `nombreCliente` a
+   `BODEGA` y los bloquea; volver a otro estado restaura el cliente previo (§12.2).
+7. Fotos: `tomarFoto(tipo)` por cada uno de `Frontal | Placa | Fachada`. Tocar una foto ya tomada
+   la **quita** (segundo toque = borrar y volver a capturar).
+8. GPS: botón manual, o automático al guardar (§12.3).
+9. Guardar → `validarDraft()` → `api.saveRegistro()` → `setUltimo` → `/censo/done`.
 
 ```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant Search as search.tsx
-    participant Api as api (mock/http)
-    participant Draft as DraftProvider
-    participant Result as result.tsx
-    participant Form as form.tsx
-    participant Device as lib/device.ts
-    participant Records as RecordsProvider
-    participant Done as done.tsx
-
-    U->>Search: escanea/captura serie
-    Search->>Api: lookupEnfriador(serie)
-    Api-->>Search: Enfriador | null
-    Search->>Draft: iniciar(serie, enfriador)
-    Search->>Result: push /censo/result
-
-    U->>Result: valida "correcto" / "corregir"
-    Result->>Draft: actualizar({status})
-    U->>Form: push /censo/form
-
-    U->>Form: completa estado, fotos, observaciones
-    Form->>Device: tomarFoto(tipo) / obtenerGps()
-    Device-->>Form: Foto | Gps (real o mock:true)
-    U->>Form: Guardar censo
-    Form->>Form: validarDraft()
-    Form->>Api: subirFoto() por cada foto real
-    Form->>Records: guardar(input)
-    Records->>Api: saveRegistro(input)
-    Api-->>Records: RegistroCenso (censado: 'SI')
-    Records->>Records: refrescar() → listRegistros()
-    Form->>Draft: setUltimo(rec) + limpiar()
-    Form->>Done: replace /censo/done
-    Done-->>U: confirmación + Censado = SI
+flowchart TD
+    A[search.tsx: serie] -->|api.lookupEnfriador| B{¿existe en FROG?}
+    B -->|sí| C[result.tsx: ¿es correcta?]
+    B -->|no| D["draft.status = NUEVO"]
+    C -->|Sí| E[status = CORRECTO<br/>campos bloqueados]
+    C -->|No| F[status = CORRECCIÓN<br/>campos abiertos]
+    D --> G[form.tsx]
+    E --> G
+    F --> G
+    G -->|"validarDraft()"| H{¿serie + status + estado + foto de Placa?}
+    H -->|falta algo| I[Alert.alert, no guarda]
+    H -->|ok| J["POST /coolers"]
+    J --> K["POST /coolers/:id/evidencias × foto"]
+    K --> L[done.tsx: Censado = SI]
 ```
+
+### Validación al guardar — `validarDraft()` (`src/lib/rules.ts`)
+
+En orden, el primer error corta:
+
+| Condición | Mensaje |
+|---|---|
+| `numeroSerie` vacía | `El número de serie es obligatorio.` |
+| `status` sin decidir | `Indica si la información recuperada es correcta.` |
+| `estadoEnfriador` vacío | `El estado del enfriador es obligatorio.` |
+| Sin foto de tipo `Placa` con `uri` | `La fotografía de la placa es obligatoria.` |
+
+> ⚠️ **La foto de la placa es obligatoria; Frontal y Fachada no.** La placa es la evidencia que
+> amarra el censo a la serie. El label del campo lo dice ("Evidencia fotográfica (Placa
+> obligatoria)"), pero un censo puede guardarse con **una sola** foto.
 
 ### Edge cases y errores
 
-| Caso | Manejo |
-|---|---|
-| Serie vacía en búsqueda | `Alert.alert('Falta la serie', …)`, no consulta |
-| Error de red en `lookupEnfriador` | `Alert.alert('Error de consulta', mensaje)` |
-| Entrar a `/censo/result` sin draft (hot reload, deep link) | `<Redirect href="/search" />` |
-| Entrar a `/censo/form` sin draft | `<Redirect href="/search" />` |
-| Entrar a `/censo/done` sin `ultimo` | `<Redirect href="/" />` |
-| Sin permiso de cámara | `abrirEscaner()` pide permiso; si se niega, `Alert.alert` sugiere captura manual |
-| Sin permiso de cámara al tomar evidencia / sin GPS | `src/lib/device.ts` nunca lanza: devuelve foto/GPS simulados (`mock: true`) |
-| Guardar sin estado del enfriador | `validarDraft()` bloquea con mensaje, no llega a `api` |
-| Reentrar a "En Piso" dos veces seguidas | El respaldo de cliente no se sobrescribe con `BODEGA` (cubierto en `rules.check.ts`) |
-| Guardar la misma serie dos veces | `upsertRegistro()` reemplaza, nunca duplica (regla §8) |
-
-### Estados posibles (status del registro)
-
-```mermaid
-stateDiagram-v2
-    [*] --> Consultando: lookupEnfriador(serie)
-    Consultando --> NUEVO: no existe en FROG
-    Consultando --> PendienteValidar: existe en FROG
-    PendienteValidar --> CORRECTO: usuario valida "correcta"
-    PendienteValidar --> CORRECCION: usuario valida "corregir"
-    NUEVO --> Guardado: guardar (campos abiertos)
-    CORRECTO --> Guardado: guardar (campos bloqueados)
-    CORRECCION --> Guardado: guardar (campos abiertos)
-    Guardado --> [*]: censado = SI
-```
+- **Draft perdido** (recarga en caliente, o entrar a `/censo/form` sin pasar por search):
+  `<Redirect href="/search" />`. En `done.tsx` sin `ultimo`, redirige a `/`.
+- **Serie ya censada**: contra el mock, `upsertRegistro()` reemplaza (§8). Contra el backend real,
+  `POST /coolers` responde **409** con un `title` tipo "Cooler con serie 'X' ya existe"; el mensaje
+  del servidor se muestra tal cual en el `Alert.alert`. El upsert del §8 lo implementa el servidor,
+  no el cliente.
+- **Foto simulada** (`mock://…`): la UI dibuja un recuadro de color en vez de la imagen, y
+  `saveRegistro` **no intenta subirla** (no hay archivo real detrás).
+- **GPS simulado**: se muestra "(simulada)" junto a las coordenadas; el censo se guarda igual.
+- **`cedis` / `ruta` vacíos** al guardar: se mandan como `'Sin CEDIS'` y `'—'` respectivamente
+  (fallback en `form.tsx:onGuardar`).
 
 ---
 
-## Flujo 3 — Reporte corporativo y exportación
+## Flujo 3 — Reporte corporativo
 
 ### Descripción
 
-Vista consolidada del universo completo: equipos ya censados **más** los que siguen en FROG sin
-censar (`Censado = NO`). Existe para que el negocio pueda medir avance real del proyecto de censo,
-no solo lo capturado. Exportable a Excel (CSV) y PDF para compartir fuera de la app.
-
-### Actores
-
-- Usuario (cualquier inspector, o quien revise el avance).
-- `api.getReporte()` — reconstruye desde `listRegistros()` + FROG en el mock; en el backend real
-  puede ser un endpoint dedicado o construirse igual del lado del servidor.
-- `expo-print` / `expo-sharing` / `expo-file-system` para exportar.
+**El reporte lo genera el backend, no la app.** El servidor cruza FROG contra lo censado y devuelve
+la **URL** de un archivo (PDF o Excel), no el binario. El rango del reporte es la ruta del
+inspector (`rutaIni = rutaFin = ruta`, con UDN abierta `00–99`).
 
 ### Paso a paso técnico
 
-1. `app/report.tsx` pide el reporte en cada `useFocusEffect` con `api.getReporte()`.
-2. El mock delega en `construirReporte()` de `src/lib/rules.ts` (regla §10): toma `FROG` menos
-   las series ya censadas → filas `Censado = NO`; concatena las filas censadas (con su `status`,
-   `estadoEnfriador`, etc.); ordena por CEDIS, luego pendientes al final, luego fecha descendente.
-3. La pantalla muestra KPIs (`StatRow`), distribuciones (`DistBars` por estado/CEDIS/tipo/marca) y
-   una tabla horizontal con `COLUMNAS_REPORTE` (14 columnas fijas).
-4. Exportar CSV: `exportarCsv(filas)` en `src/lib/export.ts` usa `construirCsv()` (con BOM UTF-8
-   para que Excel respete acentos) y comparte el archivo con `expo-sharing`.
-5. Exportar PDF: `exportarPdf(reporte, usuario)` genera HTML propio (tabla + KPIs) y lo imprime a
-   archivo con `expo-print`, luego lo comparte.
-
-### Diagrama de secuencia
+1. `app/report.tsx` → `api.generarReporte('pdf' | 'excel', ruta)` →
+   `POST /reportes/coolers` o `POST /reportes/coolers/excel`, body
+   `{udnIni:"00", udnFin:"99", rutaIni, rutaFin, folio:null}` (sin `folio` el backend usa la ronda
+   de censo vigente).
+2. La respuesta es `ReporteArchivo`: `{url, folio, total, censados, noCensados, generado}`. Si está
+   configurada `EXPO_PUBLIC_IMG_URL`, se le reapunta el host (mismo Nginx que las fotos).
+3. La pantalla ofrece cuatro acciones sobre esa URL:
+   - **Abrir** → `Linking.openURL`.
+   - **Descargar archivo** → `downloadAsync` a la caché + `Sharing.shareAsync` con el MIME correcto
+     (comparte el archivo real, no el enlace).
+   - **Compartir** → `Share.share({message: url})` (comparte el enlace).
+   - **QR** → `react-native-qrcode-svg` con la URL, para escanearla desde una computadora.
 
 ```mermaid
 sequenceDiagram
     participant U as Usuario
-    participant Report as report.tsx
-    participant Api as api (mock/http)
-    participant Rules as lib/rules.ts
-    participant Export as lib/export.ts
-    participant Share as expo-sharing
+    participant R as report.tsx
+    participant Api as api.generarReporte
+    participant B as Backend
+    participant FS as expo-file-system + Sharing
 
-    Report->>Api: getReporte()
-    Api->>Rules: construirReporte(records, FROG, catalogos)
-    Rules-->>Api: {filas, resumen}
-    Api-->>Report: Reporte
-    U->>Report: Exportar CSV
-    Report->>Export: exportarCsv(filas)
-    Export->>Rules: construirCsv(filas)
-    Export->>Share: shareAsync(archivo.csv)
+    U->>R: Excel / PDF
+    R->>Api: generarReporte(formato, ruta)
+    Api->>B: POST /reportes/coolers[/excel]
+    B-->>Api: {url, folio, total, censados, noCensados}
+    Api-->>R: ReporteArchivo
+    U->>R: Descargar archivo
+    R->>FS: downloadAsync(url) → shareAsync(uri)
 ```
 
 ### Edge cases y errores
 
-- `getReporte()` falla → `<Empty>{mensaje}</Empty>`, sin romper la pantalla.
-- Dispositivo sin capacidad de compartir → `exportarCsv`/`exportarPdf` lanzan
-  `'Este dispositivo no permite compartir archivos.'`, capturado y mostrado con `Alert.alert`.
-- Observaciones con comillas dobles → `construirCsv()` las escapa (`""`) para no romper el CSV.
-- Reporte vacío (sin FROG ni registros) → tabla con solo encabezado, `DistBars` muestra "Sin
-  datos." en cada distribución.
+- **409** = no hay ronda de censo abierta; **502** = FROG falló. El mensaje del backend se muestra
+  tal cual en `Alert.alert('No se pudo generar', …)`.
+- **Sin ruta en sesión** los dos botones quedan deshabilitados (`disabled={… || !ruta}`).
+- **El enlace caduca**: la pantalla avisa "deja de servir a los 14 días".
+  `[TODO: los 14 días son de `REPORTES_RETENCION_DIAS` del backend; confirmar que sigue en 14 —
+  el texto está hardcodeado en `app/report.tsx`.]`
+- **Dispositivo sin share sheet** → `Alert.alert('Descargado', uri)` con la ruta local.
 
-### Estados
+### Lo que quedó del reporte viejo
 
-No hay máquina de estados propia; es lectura + exportación. El único estado relevante es
-`exportando: 'csv' | 'pdf' | null`, que deshabilita ambos botones mientras uno exporta.
+`getReporte()`, `construirReporte()`, `construirCsv()` y `COLUMNAS_REPORTE` siguen existiendo y
+funcionando, pero **ninguna pantalla los llama**: `report.tsx` migró al reporte del servidor. Hoy
+los consumen solo `mock.ts` (para su propio `getReporte`) y `rules.check.ts`. Ver
+[05-API.md](05-API.md) § *Métodos del contrato que ninguna pantalla usa*.
+
+---
+
+## Flujo 4 — Auto-actualización del APK
+
+### Descripción
+
+La app se reparte fuera de Play Store, así que se actualiza contra un Nginx propio
+(`EXPO_PUBLIC_UPDATE_URL`, default `https://files.censo.aaocsa.com/app-release`).
+
+### Paso a paso técnico
+
+1. `<ModalActualizacion>` (montado una vez en `app/_layout.tsx`) llama `buscarActualizacion()` al
+   arrancar. **Falla en silencio**: si el servidor de updates está caído, el inspector tiene que
+   poder censar igual.
+2. `buscarActualizacion()` hace `fetch` de `{UPDATE_URL}/version.json` con `Cache-Control: no-cache`
+   y timeout de 10 s, y pasa el JSON por `normalizarVersion()` (`src/lib/version.ts`), que valida
+   `versionCode` entero > 0 y `apkUrl` no vacía. Cualquier otra cosa ⇒ `UpdateError`.
+3. Compara contra `Application.nativeBuildVersion` — es decir, contra el **`versionCode`**, no el
+   `versionName`. Si no es mayor, devuelve `null` y el modal no se monta.
+4. Al aceptar: `descargarEInstalar()` baja el APK a la caché con progreso (`idempotent: true` para
+   que un reintento pise una descarga a medias), verifica que no llegó vacío, obtiene un `content://`
+   con `getContentUriAsync` y lanza `INSTALL_PACKAGE` vía `expo-intent-launcher`.
+5. Con `forceUpdate: true` el modal no se puede cerrar: sin botón "Después" y con `onRequestClose`
+   neutralizado para que el botón atrás de Android no lo esquive.
+
+```mermaid
+flowchart TD
+    A[App arranca] --> B["buscarActualizacion()"]
+    B -->|error| C[silencio: no se muestra nada]
+    B -->|versionCode remoto <= instalado| C
+    B -->|hay versión nueva| D[Modal con changelog]
+    D -->|Actualizar| E["descargarEInstalar() → caché"]
+    E -->|ok| F["INSTALL_PACKAGE (instalador del sistema)"]
+    E -->|falla| G["Error + Reintentar"]
+    G -->|causa = instalacion| H["Botón: abrir ajustes de apps desconocidas"]
+```
+
+### Edge cases y errores
+
+- **La promesa resuelve al lanzar el instalador, no al terminar la instalación.** Si el usuario
+  cancela, la app sigue viva y vuelve al aviso. No hay forma de distinguir "canceló" de "instaló"
+  sin salir de la app — y no hace falta: al reabrir, el `versionCode` ya coincide.
+- **Permiso "instalar apps desconocidas"**: no se consulta antes (no hay API de Expo para
+  `canRequestPackageInstalls()`). Lo pide el instalador; si el intent falla, el modal ofrece el
+  botón que abre esos ajustes.
+- **Fuera de Android**, `buscarActualizacion()` devuelve `null` de entrada.
+- **Descarga interrumpida**: se borra el archivo parcial y se lanza
+  `UpdateError('La descarga se interrumpió…', 'descarga')`.
+
+Cómo publicar una versión nueva: [11-BUILD-Y-ACTUALIZACIONES.md](11-BUILD-Y-ACTUALIZACIONES.md).
+
+---
+
+## Flujo transversal — Historial en tres modos
+
+`app/(tabs)/history.tsx` no es un flujo de negocio propio, pero sí la pantalla con más estado:
+
+| Modo | Fuente | Pagina | Fila |
+|---|---|---|---|
+| **Censados** | `api.listCoolers({page, pageSize:20, serie, ruta})` | Sí (20 por página) | `Cooler` |
+| **En FROG** | `api.listFrog(ruta)` — el padrón completo de la ruta | No | `FrogRow` |
+| **Faltantes** | `api.listFaltantes(ruta)` — padrón menos censados (§10) | No | `FrogRow` |
+
+- El modo llega por query string desde las tarjetas de Home: `/history?modo=frog`.
+- El filtro por serie solo aplica al modo Censados (es el único paginado del servidor).
+- Se recarga al enfocar la pantalla (`useFocusEffect` + un `tick` que fuerza el efecto), así el
+  listado refleja un censo recién guardado.
+- Tocar una fila abre un modal de detalle: todos los campos + las evidencias con su imagen (solo
+  los censados tienen fotos).
+- `esCooler(f)` distingue las dos formas por la presencia de `id`.
