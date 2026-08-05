@@ -267,32 +267,97 @@ por USB o repartir el archivo; no sirve para Play Store. Keystore propio: pendie
 
 ```json
 "overrides": {
-  "react-native-reanimated": "4.5.0",
-  "react-native-worklets": "0.10.0",
+  "react-native-reanimated": "4.5.1",
+  "react-native-worklets": "0.10.1",
   "react-dom": "19.2.3"
 }
 ```
 
-**No subir estas versiones, no borrar el bloque, no correr `npm update` sobre ellas.** Si se quitan,
-la app **crashea al arrancar en Expo Go, sin mensaje de error en JS**.
+**Estado: FUNCIONA (verificado 2026-08-05 en Samsung SM-… `R5CNC1C02MK`, Expo Go 57.0.3 / versionCode
+443). No tocar mientras siga funcionando: no borrar el bloque, no correr `npm update`, no
+"actualizar por actualizar".**
+
+Estos dos números **no son fijos**: tienen que ser exactamente los de la **build de Expo Go instalada
+en el teléfono**. Si Expo Go se actualiza y estos quedan atrás, la app vuelve a crashear. La regla es
+*seguir a Expo Go*, no *quedarse quieto*.
 
 Por qué: `reanimated` y `worklets` entran como deps transitivas de `expo-router`, y su parte nativa
-(`libworklets.so`) viene **compilada dentro del APK de Expo Go**. Expo Go SDK 57 trae reanimated
-`4.5.0` / worklets `0.10.0`. Si npm instala un patch más nuevo (4.5.3 / 0.10.3), el JS habla con un
-nativo que no coincide y el proceso muere con `SIGSEGV` en `memcpy` dentro de `libworklets.so`.
+(`libworklets.so`) viene **compilada dentro del APK de Expo Go**. Si el JS y ese nativo no son la
+misma versión — en cualquier dirección, más nuevo o más viejo — el proceso muere con `SIGSEGV`, sin
+error en JS ni en la consola de Metro.
+
 `react-dom` está pineado a la versión de `react` porque si no, cualquier `npm install` falla con
 ERESOLVE.
 
-Cómo se diagnostica si vuelve a pasar (el error **no** aparece en la consola de Metro):
-
-```bash
-adb logcat -b crash -d | grep -E "signal|libworklets"     # SIGSEGV + libworklets.so ⇒ es esto
-node -p "require('./node_modules/expo/bundledNativeModules.json')['react-native-worklets']"
-node -p "require('./node_modules/react-native-worklets/package.json').version"   # deben ser iguales
-```
-
 Con un dev build de EAS esto deja de importar: ahí el nativo se compila desde `node_modules`, así que
 las versiones siempre coinciden. Los `overrides` existen **solo por Expo Go**.
+
+### Si vuelve a crashear al arrancar: receta exacta
+
+Caso real 2026-08-05: `npm start` + abrir en el teléfono ⇒ la app se cierra sola ~0.5 s después de
+cargar el bundle. Metro dice `Android Bundled ... OK`. **Cero errores en JS.** Causa: los overrides
+estaban en `4.5.0` / `0.10.0` y el Expo Go del teléfono ya traía `0.10.1`.
+
+**1. Confirmar que es esto** (30 s):
+
+```bash
+adb logcat -b crash -d | grep -E "signal 11|libworklets"
+```
+
+Firma exacta del bug — si ves esto, es esto y nada más:
+
+```text
+signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0xf0000000000008
+name: mqt_v_js  >>> host.exp.exponent <<<
+#02 pc 00000000000969b4 ... libworklets.so
+```
+
+**2. Averiguar qué versión quiere Expo Go.** `bundledNativeModules.json` **NO es la fuente de
+verdad** — mintió en este caso (decía `0.10.0` cuando el APK ya traía `0.10.1`). El proyecto de
+control sí lo es:
+
+```bash
+cd /tmp && rm -rf ctrl
+npx create-expo-app@latest ctrl --template default --no-install && cd ctrl && npm install
+node -p "require('./node_modules/react-native-worklets/package.json').version"    # ⇒ la buena
+node -p "require('./node_modules/react-native-reanimated/package.json').version"  # ⇒ la buena
+npx expo start --port 8084     # abrirlo en el teléfono: si NO crashea, esas versiones son las correctas
+```
+
+**3. Aplicar** — poner esos dos números en `overrides` de `package.json`, y:
+
+```bash
+npm install
+npx expo start -c              # -c obligatorio: la caché de Metro guarda el bundle viejo
+```
+
+**4. Verificar en el teléfono** sin tocarlo con la mano:
+
+```bash
+adb logcat -c
+adb shell am force-stop host.exp.exponent
+adb shell am start -a android.intent.action.VIEW -d "exp://$(ip route get 1.1.1.1 | grep -oP 'src \K\S+'):8081" host.exp.exponent
+sleep 45
+adb logcat -b crash -d | grep -c "signal 11"    # tiene que dar 0
+adb exec-out screencap -p > /tmp/shot.png       # tiene que verse la pantalla de login
+```
+
+Comandos de apoyo, por si hacen falta:
+
+```bash
+adb shell dumpsys package host.exp.exponent | grep -E "versionName|versionCode"  # build de Expo Go
+adb logcat -b main -d | grep ReactNativeJS | grep -v 'Running .main'             # errores JS reales
+fuser -k 8081/tcp                                                                # matar un Metro colgado
+```
+
+**Callejones sin salida ya recorridos** (no repetirlos):
+
+- `bundledNativeModules.json` de `expo` — desactualizado respecto al APK, no sirve para decidir.
+- Copias anidadas de `worklets`/`reanimated` en `node_modules` — no había, los `overrides` funcionan.
+- Falta de `babel.config.js` — el proyecto nunca lo tuvo; `babel-preset-expo` entra por default.
+- `npx expo-doctor` — reporta patches atrasados, `expo-font` faltante y props inválidas en
+  `app.json`. Todo real, pero **nada de eso causa este crash**.
+- Symbolizar `libworklets.so` con `nm`/`addr2line` — viene stripped, no da nada útil.
 
 ## Auto-actualización del APK
 
