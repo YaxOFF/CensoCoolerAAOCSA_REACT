@@ -4,8 +4,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { api, USE_MOCK } from '@/api';
@@ -21,6 +21,13 @@ export default function SearchScreen() {
   const [permiso, pedirPermiso] = useCameraPermissions();
   const { iniciar } = useDraft();
   const router = useRouter();
+  const params = useLocalSearchParams<{ serie?: string; n?: string }>();
+
+  // Acceso directo desde el Historial (/search?serie=…): solo precarga el campo, igual
+  // que el escaneo. Consultar en FROG sigue siendo un toque explícito del inspector.
+  useEffect(() => {
+    if (params.serie) setSerie(params.serie.toUpperCase());
+  }, [params.serie, params.n]);
 
   async function abrirEscaner() {
     if (!permiso?.granted) {

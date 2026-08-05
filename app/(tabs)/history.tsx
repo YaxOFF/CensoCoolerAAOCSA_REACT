@@ -6,7 +6,7 @@
    Los dos últimos devuelven filas crudas de FROG (llaves en MAYÚSCULAS, sin id ni
    evidencias) y no paginan: son decenas de filas y FlatList ya virtualiza. */
 
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +15,7 @@ import { api, USE_MOCK, type Cooler, type FrogRow } from '@/api';
 import { fmtFecha } from '@/lib/format';
 import { colors, estadoColor, estadoLabel, radius, shadow, statusColor } from '@/theme';
 import { useSession } from '@/store/session';
-import { Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, Segmented, Tag, ViewHead } from '@/ui';
+import { Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, PrimaryButton, Segmented, Tag, ViewHead } from '@/ui';
 
 const PAGE_SIZE = 20;
 
@@ -28,6 +28,9 @@ const MODOS: { key: Modo; label: string }[] = [
   { key: 'faltantes', label: 'Faltantes' },
 ];
 
+/** Las series de FROG vienen con prefijo `C_`; el censo usa la serie desnuda. */
+const sinPrefijo = (s: string) => s.replace(/^C_/i, '').trim();
+
 /** Solo los censos traen id: es lo que distingue un Cooler de una fila cruda de FROG. */
 function esCooler(f: Fila): f is Cooler {
   return 'id' in f;
@@ -35,7 +38,7 @@ function esCooler(f: Fila): f is Cooler {
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
-  const { ruta } = useSession();
+  const { ruta, udn } = useSession();
   const params = useLocalSearchParams<{ modo?: string }>();
 
   const [modo, setModo] = useState<Modo>('censados');
@@ -83,7 +86,9 @@ export default function HistoryScreen() {
           setTotal(r.totalCount);
         } else {
           const filas = ruta
-            ? await (modo === 'frog' ? api.listFrog(ruta) : api.listFaltantes(ruta))
+            ? await (modo === 'frog'
+                ? api.listFrog(ruta, udn ?? undefined)
+                : api.listFaltantes(ruta, udn ?? undefined))
             : [];
           if (!vigente) return;
           setItems(filas);
@@ -101,7 +106,7 @@ export default function HistoryScreen() {
     return () => {
       vigente = false;
     };
-  }, [modo, page, buscada, ruta, tick]);
+  }, [modo, page, buscada, ruta, udn, tick]);
 
   function buscar() {
     setPage(1);
@@ -322,11 +327,14 @@ function filasFrog(f: FrogRow): [string, string][] {
    todavía no se censa (ahí no hay fotos que mostrar). */
 function DetalleModal({ fila, onClose }: { fila: Fila | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   if (!fila) return null;
 
   const censo = esCooler(fila) ? fila : null;
   const rows = censo ? filasCooler(censo) : filasFrog(fila as FrogRow);
   const titulo = censo ? censo.serie : ((fila as FrogRow).SERIE ?? '—');
+  // Acceso directo: solo tiene sentido en lo que aún no se censa (En FROG / Faltantes).
+  const serieACensar = censo ? '' : sinPrefijo(titulo === '—' ? '' : titulo);
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -356,6 +364,24 @@ function DetalleModal({ fila, onClose }: { fila: Fila | null; onClose: () => voi
                 <Empty>Este censo no tiene fotos.</Empty>
               )}
             </>
+          )}
+
+          {!!serieACensar && (
+            <View style={{ marginTop: 20 }}>
+              <PrimaryButton
+                onPress={() => {
+                  onClose();
+                  // `n`: expo-router conserva los params de la pestaña, así que sin nonce
+                  // mandar la misma serie dos veces no volvería a llenar el campo.
+                  router.push({
+                    pathname: '/(tabs)/search',
+                    params: { serie: serieACensar, n: String(Date.now()) },
+                  });
+                }}
+              >
+                Censar este equipo
+              </PrimaryButton>
+            </View>
           )}
         </ScrollView>
       </View>

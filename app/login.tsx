@@ -24,7 +24,7 @@ export default function LoginScreen() {
       Alert.alert('Falta la ruta', 'Selecciona tu CEDIS y tu número de ruta.');
       return;
     }
-    await entrar(ruta);
+    await entrar(ruta, udn);
     router.replace('/');
   }
 

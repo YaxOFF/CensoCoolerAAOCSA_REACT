@@ -293,12 +293,17 @@ export const httpApi: CensoApi = {
     };
   },
 
-  async listFrog(ruta: string) {
+  async listFrog(ruta: string, udn?: string) {
     try {
       return await request<FrogRow[]>('/frog/enfriadores', {
         method: 'POST',
-        // La UDN va abierta: la ruta ya identifica al inspector.
-        body: { udnIni: '00', udnFin: '99', rutaIni: ruta, rutaFin: ruta },
+        // Con CEDIS del login se acota al mismo (ini = fin); sin él va abierta.
+        body: {
+          udnIni: udn || '00',
+          udnFin: udn || '99',
+          rutaIni: ruta,
+          rutaFin: ruta,
+        },
       });
     } catch (e) {
       // 404 = FROG no devolvió equipos para el rango. Para la pantalla es lista vacía.
@@ -320,8 +325,13 @@ export const httpApi: CensoApi = {
     }
   },
 
-  async listFaltantes(ruta: string) {
-    const qs = new URLSearchParams({ rutaIni: ruta, rutaFin: ruta });
+  async listFaltantes(ruta: string, udn?: string) {
+    const qs = new URLSearchParams({
+      rutaIni: ruta,
+      rutaFin: ruta,
+      udnIni: udn || '00',
+      udnFin: udn || '99',
+    });
     const r = await request<{ items: FrogRow[] }>(`/coolers/faltantes?${qs}`);
     return r.items ?? [];
   },
@@ -349,14 +359,19 @@ export const httpApi: CensoApi = {
     return mapRegistro(cooler, input, fotos);
   },
 
-  async getResumen(ruta?: string) {
+  async getResumen(ruta?: string, udn?: string) {
     // Dos fuentes: /censos/resumen da el avance contra FROG, /coolers/resumen los
     // conteos por tipo de registro y estado. Si una falla, el Dashboard muestra la otra
     // en vez de quedarse en blanco; solo se tumba si fallan las dos.
+    // El CEDIS (udn) acota el avance: la misma ruta puede existir en varias UDN.
+    const qs = [
+      udn && `udn=${encodeURIComponent(udn)}`,
+      ruta && `ruta=${encodeURIComponent(ruta)}`,
+    ]
+      .filter(Boolean)
+      .join('&');
     const [totales, conteos] = await Promise.all([
-      request<ResumenApi>(`/censos/resumen${ruta ? `?ruta=${encodeURIComponent(ruta)}` : ''}`).catch(
-        () => null
-      ),
+      request<ResumenApi>(`/censos/resumen${qs ? `?${qs}` : ''}`).catch(() => null),
       // rutaIni sin rutaFin significa "de esa ruta en adelante": hay que mandar las dos
       // para acotar a la ruta del inspector.
       request<CoolersResumenApi>(

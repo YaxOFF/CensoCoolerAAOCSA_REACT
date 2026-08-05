@@ -31,8 +31,9 @@ export interface CensoApi {
   listCoolers(q?: CoolersQuery): Promise<CoolersPage>;
 
   /** Padrón completo de FROG para una ruta. No pagina: son decenas de filas.
-   *  Endpoint: POST /frog/enfriadores  body { udnIni:"00", udnFin:"99", rutaIni, rutaFin } */
-  listFrog(ruta: string): Promise<FrogRow[]>;
+   *  Endpoint: POST /frog/enfriadores  body { udnIni, udnFin, rutaIni, rutaFin }
+   *  Con udn del login, udnIni = udnFin = udn; sin él, rango abierto 00–99. */
+  listFrog(ruta: string, udn?: string): Promise<FrogRow[]>;
 
   /** Rutas que FROG tiene dadas de alta en ese CEDIS. Se consulta bajo demanda
    *  (al abrir el selector de ruta), no al arrancar: son decenas por UDN.
@@ -40,8 +41,8 @@ export interface CensoApi {
   listRutas(udn: string): Promise<string[]>;
 
   /** Equipos de FROG que esa ruta todavía no censa (§10), solo `items`.
-   *  Endpoint: GET /coolers/faltantes?rutaIni=…&rutaFin=… */
-  listFaltantes(ruta: string): Promise<FrogRow[]>;
+   *  Endpoint: GET /coolers/faltantes?rutaIni=…&rutaFin=…&udnIni=…&udnFin=… */
+  listFaltantes(ruta: string, udn?: string): Promise<FrogRow[]>;
 
   /** Guarda un censo y sus evidencias. Reemplaza si ya existe esa serie (§8: Censado = SI).
    *  Endpoints: POST /coolers  y luego POST /coolers/:id/evidencias por cada foto.
@@ -50,8 +51,8 @@ export interface CensoApi {
   saveRegistro(input: RegistroCensoInput): Promise<RegistroCenso>;
 
   /** Indicadores del Dashboard (§9). El backend los calcula por ruta del inspector.
-   *  Endpoint: GET /censos/resumen?ruta=… */
-  getResumen(ruta?: string): Promise<Resumen>;
+   *  Endpoint: GET /censos/resumen?udn=…&ruta=… */
+  getResumen(ruta?: string, udn?: string): Promise<Resumen>;
 
   /** Reporte corporativo: censados + pendientes de FROG (§10).
    *  Endpoint: GET /censos/reporte */

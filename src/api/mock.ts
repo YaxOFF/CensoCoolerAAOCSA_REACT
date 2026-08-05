@@ -197,7 +197,7 @@ export const mockApi: CensoApi = {
     return { items: todos.slice(desde, desde + pageSize), page, pageSize, totalCount: todos.length };
   },
 
-  async listFrog(_ruta: string) {
+  async listFrog(_ruta: string, _udn?: string) {
     await delay();
     return FROG.map(aFrogRow);
   },
@@ -207,7 +207,7 @@ export const mockApi: CensoApi = {
     return CATALOGOS.rutas;
   },
 
-  async listFaltantes(_ruta: string) {
+  async listFaltantes(_ruta: string, _udn?: string) {
     await delay();
     const censadas = new Set((await leer()).map((r) => r.numeroSerie));
     return FROG.filter((f) => !censadas.has(f.numeroSerie)).map(aFrogRow);
@@ -220,8 +220,8 @@ export const mockApi: CensoApi = {
     return rec;
   },
 
-  async getResumen(_ruta?: string) {
-    // El mock ignora la ruta: FROG simulado es uno solo.
+  async getResumen(_ruta?: string, _udn?: string) {
+    // El mock ignora ruta y udn: FROG simulado es uno solo.
     await delay();
     return construirResumen(await leer(), FROG, CATALOGOS);
   },

@@ -3,7 +3,7 @@
     "name": "CensoCooler",
     "slug": "CensoEnfriadores_ReactNative",
     "scheme": "censoenfriadores",
-    "version": "1.0.3",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/iconCooler.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.censoenfriadores.app",
-      "versionCode": 4,
+      "versionCode": 7,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],

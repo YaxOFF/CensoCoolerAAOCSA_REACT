@@ -9,18 +9,18 @@ import type { Resumen } from '../api/types';
 import { useSession } from './session';
 
 export function useResumen() {
-  const { ruta } = useSession();
+  const { ruta, udn } = useSession();
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const recargar = useCallback(async () => {
     try {
-      setResumen(await api.getResumen(ruta ?? undefined));
+      setResumen(await api.getResumen(ruta ?? undefined, udn ?? undefined));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar los indicadores.');
     }
-  }, [ruta]);
+  }, [ruta, udn]);
 
   useFocusEffect(
     useCallback(() => {
