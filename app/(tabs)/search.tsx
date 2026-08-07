@@ -11,7 +11,10 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, USE_MOCK } from '@/api';
 import { SERIES_DEMO } from '@/api/mock';
 import { leerEstadoOffline } from '@/api/offline';
+import type { Enfriador } from '@/api/types';
+import { esDeOtraRuta } from '@/lib/rules';
 import { useDraft } from '@/store/draft';
+import { useSession } from '@/store/session';
 import { colors, radius } from '@/theme';
 import { Card, Chip, Field, GhostButton, Hero, Input, Muted, PrimaryButton, Screen } from '@/ui';
 
@@ -21,6 +24,7 @@ export default function SearchScreen() {
   const [escaneando, setEscaneando] = useState(false);
   const [permiso, pedirPermiso] = useCameraPermissions();
   const { iniciar } = useDraft();
+  const { ruta } = useSession();
   const router = useRouter();
   const params = useLocalSearchParams<{ serie?: string; n?: string }>();
 
@@ -49,6 +53,11 @@ export default function SearchScreen() {
     setSerie(valor.trim().toUpperCase());
   }
 
+  function abrirCenso(serieLimpia: string, enfriador: Enfriador) {
+    iniciar(serieLimpia, enfriador);
+    router.push('/censo/result');
+  }
+
   async function consultar() {
     const limpia = serie.trim().toUpperCase();
     if (!limpia) {
@@ -71,8 +80,23 @@ export default function SearchScreen() {
         );
         return;
       }
-      iniciar(limpia, enfriador);
-      router.push('/censo/result');
+      // El backend filtra el avance, el historial y el reporte por ?ruta=. Censar un
+      // equipo de otra ruta es válido y a veces necesario, pero el registro no le
+      // vuelve al inspector: sin este aviso se lee como una captura perdida.
+      if (esDeOtraRuta(enfriador.ruta, ruta)) {
+        Alert.alert(
+          'Este enfriador es de otra ruta',
+          `La serie ${limpia} está asignada a la ruta ${enfriador.ruta}, y tú entraste con la ruta ${ruta}.\n\n` +
+            `Puedes censarlo y se guardará bien, pero quedará registrado en la ruta ${enfriador.ruta}: ` +
+            'no lo verás en tu avance, tu historial ni tu reporte.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Censar de todos modos', onPress: () => abrirCenso(limpia, enfriador) },
+          ]
+        );
+        return;
+      }
+      abrirCenso(limpia, enfriador);
     } catch (e) {
       Alert.alert('Error de consulta', e instanceof Error ? e.message : 'No se pudo consultar FROG.');
     } finally {

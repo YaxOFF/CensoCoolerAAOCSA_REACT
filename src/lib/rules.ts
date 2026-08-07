@@ -90,6 +90,15 @@ export function upsertRegistro(records: RegistroCenso[], rec: RegistroCenso): Re
   return copia;
 }
 
+/** La ruta del equipo en FROG contra la del login. Ambas salen de FROG (el login las
+    elige de GET /frog/rutas/:udn), así que basta normalizar espacios y mayúsculas.
+    Sin ruta en la sesión o sin ruta en FROG no hay nada que comparar: no se avisa. */
+export function esDeOtraRuta(rutaFrog: string | null | undefined, rutaSesion: string | null): boolean {
+  const frog = (rutaFrog ?? '').trim().toUpperCase();
+  const sesion = (rutaSesion ?? '').trim().toUpperCase();
+  return !!frog && !!sesion && frog !== sesion;
+}
+
 /* ── Cola offline (modo Sin Internet) ──────────────────────────────────────
    La mecánica (AsyncStorage, fotos, envío) vive en src/api/offline.ts; aquí solo
    las partes puras, que así quedan cubiertas por `npm run check`. */

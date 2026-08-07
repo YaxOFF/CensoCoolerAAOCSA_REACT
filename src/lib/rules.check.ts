@@ -24,6 +24,7 @@ import {
   construirCsv,
   construirReporte,
   construirResumen,
+  esDeOtraRuta,
   faltantesSinCola,
   pendienteAFilaCooler,
   resolverStatus,
@@ -203,6 +204,13 @@ assert.deepEqual(
   'lo censado en el teléfono ya no cuenta como faltante, con o sin prefijo C_'
 );
 assert.equal(faltantesSinCola(FALTANTES, []).length, 3, 'sin cola no descuenta nada');
+
+/* Aviso de equipo fuera de la ruta del inspector. Un falso aviso saldría en cada
+   consulta, así que la comparación tolera espacios y mayúsculas, y calla sin datos. */
+assert.equal(esDeOtraRuta('R-205', 'R-101'), true, 'ruta distinta ⇒ avisa');
+assert.equal(esDeOtraRuta(' r-101 ', 'R-101'), false, 'misma ruta con espacios/minúsculas ⇒ no avisa');
+assert.equal(esDeOtraRuta('', 'R-101'), false, 'FROG sin ruta ⇒ no avisa');
+assert.equal(esDeOtraRuta('R-205', null), false, 'sesión sin ruta ⇒ no avisa');
 
 console.log('✓ reglas del censo OK');
 
