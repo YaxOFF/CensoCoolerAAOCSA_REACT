@@ -13,6 +13,7 @@ import { colors } from '@/theme';
 import { Loading } from '@/ui';
 import { BannerRed } from '@/ui/BannerRed';
 import { ModalActualizacion } from '@/ui/ModalActualizacion';
+import { ModalOffline } from '@/ui/ModalOffline';
 
 export default function RootLayout() {
   return (
@@ -25,6 +26,8 @@ export default function RootLayout() {
             <StatusBar style="auto" />
             <Navegacion />
             <BannerRed />
+            {/* Ofrece el modo Sin Internet cuando se cae la red, en cualquier pantalla. */}
+            <ModalOffline />
             {/* Encima de todo: si la actualización es forzada, tapa la app entera. */}
             <ModalActualizacion />
           </DraftProvider>

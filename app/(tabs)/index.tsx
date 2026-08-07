@@ -1,11 +1,18 @@
 /* HomeScreen — home.html de la demo: KPIs de avance y accesos rápidos. */
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 
 import { USE_MOCK } from '@/api';
+import {
+  leerEstadoOffline,
+  precargarPadron,
+  suscribirOffline,
+  type ResultadoPrecarga,
+} from '@/api/offline';
+import { fmtFecha } from '@/lib/format';
 import { useResumen } from '@/store/resumen';
 import { useSession } from '@/store/session';
 import { colors } from '@/theme';
@@ -23,16 +30,43 @@ import {
 } from '@/ui';
 
 export default function HomeScreen() {
-  const { ruta, salir } = useSession();
+  const { ruta, udn, salir } = useSession();
   const { resumen, error, recargar } = useResumen();
   const router = useRouter();
   const [refrescando, setRefrescando] = useState(false);
+  const off = useSyncExternalStore(suscribirOffline, leerEstadoOffline, leerEstadoOffline);
+  const [precarga, setPrecarga] = useState<ResultadoPrecarga | null>(null);
+  const [descargando, setDescargando] = useState(false);
+  // Ref y no estado: el guard tiene que verse desde el callback del foco, que no
+  // se vuelve a crear en cada render.
+  const enCurso = useRef(false);
+
+  /* Requisito del usuario: el padrón de la ruta se descarga SOLO al entrar aquí.
+     Así el inspector sabe exactamente dónde se refrescan sus datos sin conexión,
+     y ninguna otra pantalla se pone a bajar decenas de filas por su cuenta. */
+  const descargarPadron = useCallback(async () => {
+    if (USE_MOCK || !ruta || enCurso.current) return;
+    enCurso.current = true;
+    setDescargando(true);
+    try {
+      setPrecarga(await precargarPadron(ruta, udn ?? ''));
+    } finally {
+      enCurso.current = false;
+      setDescargando(false);
+    }
+  }, [ruta, udn]);
+
+  useFocusEffect(
+    useCallback(() => {
+      descargarPadron();
+    }, [descargarPadron])
+  );
 
   // recargar() no expone su propio estado de carga: el spinner del gesto lo lleva la pantalla.
   async function refrescar() {
     setRefrescando(true);
     try {
-      await recargar();
+      await Promise.all([recargar(), descargarPadron()]);
     } finally {
       setRefrescando(false);
     }
@@ -81,6 +115,28 @@ export default function HomeScreen() {
         />
       ) : (
         !error && <Loading text="Cargando indicadores…" />
+      )}
+
+      {/* Estado de los datos sin conexión. El inspector tiene que poder ver, antes
+          de salir a ruta, si lleva el padrón encima y de cuándo es. */}
+      {!USE_MOCK && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, marginLeft: 4 }}>
+          <Ionicons
+            name={off.hayPadron ? 'cloud-done-outline' : 'cloud-offline-outline'}
+            size={16}
+            color={off.hayPadron ? colors.green : colors.red}
+          />
+          <Muted style={{ flex: 1, color: off.hayPadron ? colors.text2 : colors.red }}>
+            {descargando
+              ? 'Descargando datos para trabajar sin conexión…'
+              : off.hayPadron
+                ? `Sin conexión: ${off.padronTotal} equipo(s) listos · ${fmtFecha(off.padronFecha ?? '')}`
+                : (precarga?.error ?? 'Todavía no se han descargado los datos para trabajar sin conexión.')}
+          </Muted>
+          {!descargando && (!off.hayPadron || precarga?.ok === false) && (
+            <MiniButton onPress={descargarPadron}>Reintentar</MiniButton>
+          )}
+        </View>
       )}
 
       <View style={{ gap: 12, marginTop: 20 }}>

@@ -6,11 +6,14 @@
 
 import type {
   Catalogos,
+  Cooler,
   Distribucion,
   Draft,
   Enfriador,
   EstadoEnfriador,
+  FrogRow,
   RegistroCenso,
+  RegistroCensoInput,
   Reporte,
   ReporteRow,
   Resumen,
@@ -85,6 +88,77 @@ export function upsertRegistro(records: RegistroCenso[], rec: RegistroCenso): Re
   const copia = [...records];
   copia[idx] = rec;
   return copia;
+}
+
+/* ── Cola offline (modo Sin Internet) ──────────────────────────────────────
+   La mecánica (AsyncStorage, fotos, envío) vive en src/api/offline.ts; aquí solo
+   las partes puras, que así quedan cubiertas por `npm run check`. */
+
+/** FROG emite las series con prefijo `C_` y el censo usa la serie desnuda: para
+    comparar una contra otra hay que quitarlo. */
+export function serieNormalizada(serie: string | null | undefined): string {
+  return (serie ?? '').trim().replace(/^C_/i, '').toUpperCase();
+}
+
+/** Un censo encolado, dibujado como fila del Historial.
+    `status` y `tipoRegistro` van con los valores del dominio ("Usado Disponible",
+    "CORRECCIÓN") y no con los enums del backend: estadoColor()/statusColor() ya
+    normalizan acentos y guiones bajos, así que la fila se pinta igual. */
+export function pendienteAFilaCooler(
+  input: RegistroCensoInput,
+  id: string,
+  creado: string,
+  error?: string | null
+): Cooler {
+  const fecha = new Date(creado);
+  const frog = input.frog ?? {};
+  return {
+    id,
+    serie: input.numeroSerie,
+    // Sin servidor no hay folio ni ronda asignada: se muestran los del momento de captura.
+    folio: 0,
+    censoAnio: fecha.getFullYear(),
+    censoMes: fecha.getMonth() + 1,
+    comodato: frog.COMODATO ?? null,
+    contrato: frog.CONTRATO ?? null,
+    udn: input.cedis,
+    ruta: input.ruta,
+    idCliente: input.numeroCliente,
+    razonSocial: input.nombreCliente,
+    denComercial: frog.DENCOMERCIAL ?? null,
+    calle: input.direccion,
+    numero: null,
+    colonia: null,
+    frec: frog.FREC ?? null,
+    descripcion: frog.DESCRIPCION ?? `${input.marca} ${input.modelo}`.trim(),
+    tipoEnfri: input.tipo,
+    marca: input.marca || null,
+    modelo: input.modelo || null,
+    anio: frog.ANIO ?? null,
+    subStatus: frog.SUBSTATUS ?? null,
+    tipoRegistro: input.status,
+    observaciones: input.observaciones,
+    latitud: input.lat,
+    longitud: input.lng,
+    status: input.estadoEnfriador,
+    created: input.fecha || creado,
+    // Las fotos siguen en el teléfono: la uri local hace de url hasta que se suban.
+    evidencias: input.fotos.map((f, i) => ({
+      id: `${id}-${i}`,
+      url: f.uri,
+      pie: f.pie ?? f.tipo,
+      created: creado,
+    })),
+    pendienteEnvio: true,
+    errorEnvio: error ?? null,
+  };
+}
+
+/** §10 sin conexión: lo que FROG marcaba como faltante, menos lo que ya se censó
+    en el teléfono y todavía no se ha podido enviar. */
+export function faltantesSinCola(faltantes: FrogRow[], seriesEnCola: string[]): FrogRow[] {
+  const censadas = new Set(seriesEnCola.map(serieNormalizada));
+  return faltantes.filter((f) => !censadas.has(serieNormalizada(f.SERIE)));
 }
 
 /** Cuenta ocurrencias de una clave dentro de una lista. */

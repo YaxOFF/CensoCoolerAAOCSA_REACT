@@ -10,6 +10,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { api, USE_MOCK } from '@/api';
 import { SERIES_DEMO } from '@/api/mock';
+import { leerEstadoOffline } from '@/api/offline';
 import { useDraft } from '@/store/draft';
 import { colors, radius } from '@/theme';
 import { Card, Chip, Field, GhostButton, Hero, Input, Muted, PrimaryButton, Screen } from '@/ui';
@@ -60,9 +61,13 @@ export default function SearchScreen() {
       // el censo: casi siempre es un error de captura, no un equipo que falte en la base.
       const enfriador = await api.lookupEnfriador(limpia);
       if (!enfriador) {
+        // Sin conexión la búsqueda va contra el padrón descargado, que solo tiene la
+        // ruta del inspector: el mensaje tiene que decirlo o parece que FROG falló.
         Alert.alert(
           'Serie no encontrada',
-          `La serie ${limpia} no existe en FROG. Verifica que la capturaste completa y sin errores, y vuelve a intentar.`
+          leerEstadoOffline().modo
+            ? `La serie ${limpia} no está en el padrón de tu ruta que se descargó en Inicio. Sin conexión solo se pueden censar esos equipos: verifica la serie o conéctate a internet para consultar FROG.`
+            : `La serie ${limpia} no existe en FROG. Verifica que la capturaste completa y sin errores, y vuelve a intentar.`
         );
         return;
       }

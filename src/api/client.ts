@@ -61,10 +61,21 @@ function estadoRed(): EstadoRed {
   return ultimaRespuestaLenta ? 'inestable' : 'ok';
 }
 
+/* El 'ok' con el que arranca `backendAlcanzable` es un SUPUESTO: todavía no contestó
+   nadie. Distinguirlo importa para el modo Sin Internet, que solo se puede apagar
+   con una conexión comprobada, no con la optimista del arranque. */
+let confirmada = false;
+export function redConfirmada(): boolean {
+  return confirmada;
+}
+
 let ultimoEstado = estadoRed();
-function notificar() {
+function notificar(confirma = false) {
+  const primeraConfirmacion = confirma && !confirmada;
+  if (confirma) confirmada = true;
   const nuevo = estadoRed();
-  if (nuevo === ultimoEstado) return;
+  // La primera confirmación se avisa aunque el estado derivado no haya cambiado.
+  if (nuevo === ultimoEstado && !primeraConfirmacion) return;
   ultimoEstado = nuevo;
   oyentes.forEach((f) => f());
 }
@@ -92,7 +103,9 @@ if (API_URL) {
     // "no hay red", es "todavía no sé". Tratarlo como caída pintaría el banner al abrir.
     backendAlcanzable = state.isConnected !== false && state.isInternetReachable !== false;
     if (backendAlcanzable === false) ultimaRespuestaLenta = false;
-    notificar();
+    // Solo cuenta como confirmación cuando el sondeo ya dio un veredicto: mientras
+    // isInternetReachable siga en null, seguimos sin saber.
+    notificar(state.isInternetReachable !== null);
   });
 }
 
@@ -126,7 +139,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     // Contestó: hay red. Solo la calidad está en duda.
     backendAlcanzable = true;
     ultimaRespuestaLenta = Date.now() - t0 >= LENTO_MS;
-    notificar();
+    notificar(true);
 
     if (!res.ok) {
       throw new ApiError(mensajeDeError(res.status, datos), res.status, datos);
@@ -138,7 +151,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     if (e instanceof ApiError) throw e;
     backendAlcanzable = false;
     ultimaRespuestaLenta = false;
-    notificar();
+    notificar(true);
     if (e instanceof Error && e.name === 'AbortError') {
       throw new ApiError('El servidor no respondió a tiempo. Revisa tu conexión.', 0);
     }

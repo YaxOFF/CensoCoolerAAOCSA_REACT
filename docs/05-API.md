@@ -91,6 +91,9 @@ Fuera del contrato hay dos llamadas HTTP más, a propósito:
 
 - **Respuesta**: `Cooler` con su `id` — necesario para subir las evidencias.
 - **409**: serie ya censada en la ronda vigente. El `title` del backend se muestra tal cual.
+  En la sincronización de la cola offline (`src/api/offline.ts`) el 409 **no** es un fallo: quiere
+  decir que el censo ya está en el servidor, así que sale de la cola y se reporta aparte como
+  *"ya registrado"*. Reintentarlo eternamente solo trabaría el envío.
 
 > ⚠️ Los dos enums son **cerrados**: `'CORRECCIÓN'` con acento o `'EN_PISO'` con guion bajo
 > responden **400**. Los mapeos `STATUS_A_TIPO_REGISTRO` y `ESTADO_A_ENUM` son obligatorios, no

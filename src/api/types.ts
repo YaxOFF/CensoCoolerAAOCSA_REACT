@@ -110,6 +110,8 @@ export interface RegistroCenso extends Enfriador {
   usuario: string;
   censado: Censado;
   fotos: Foto[];
+  /** true cuando el censo se guardó sin conexión y sigue en la cola de envío. */
+  pendienteEnvio?: boolean;
 }
 
 /** Lo que la pantalla de formulario envía a la API. El servidor decide fecha y censado. */
@@ -232,6 +234,10 @@ export interface Cooler {
   status: string;
   created: string;
   evidencias: Evidencia[];
+  /** Solo en filas que todavía no salieron del teléfono (cola offline). El servidor
+   *  nunca manda estos dos campos; los pone src/api/offline.ts. */
+  pendienteEnvio?: boolean;
+  errorEnvio?: string | null;
 }
 
 export interface CoolersPage {

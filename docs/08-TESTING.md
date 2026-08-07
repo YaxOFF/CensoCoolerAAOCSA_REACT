@@ -56,6 +56,9 @@ directo, sin paso de compilación.
 | `construirResumen()` (§9) | El avance: `censados` cuenta todos los levantamientos, pero el porcentaje se calcula solo contra el universo de FROG — los `NUEVO` no descuentan pendientes. La distribución muestra el catálogo completo aunque esté en cero |
 | `construirReporte()` (§10) | Censados + pendientes, y que los pendientes salgan con `status: ''` |
 | `construirCsv()` | BOM presente (acentos en Excel) y escape correcto de comillas dobles |
+| `serieNormalizada()` | Que el prefijo `C_` de FROG se recorte **después** del trim (`'  c_a-1 '` ⇒ `'A-1'`); `null` ⇒ `''` |
+| `pendienteAFilaCooler()` | Que un censo encolado salga con `pendienteEnvio: true`, sus fotos locales como evidencias, el año/mes de captura, y que el motivo del fallo viaje en `errorEnvio` |
+| `faltantesSinCola()` | Que lo censado en el teléfono deje de contar como faltante, con o sin prefijo `C_`; sin cola no descuenta nada |
 | `normalizarVersion()` | JSON no-objeto, `versionCode` faltante o no entero, `apkUrl` faltante ⇒ `null`; relativa cuelga del servidor sin doble diagonal; absoluta se respeta; `forceUpdate` solo con booleano `true` (la cadena `"true"` no cuenta) |
 
 ## Qué NO está cubierto
@@ -66,7 +69,12 @@ directo, sin paso de compilación.
   `mapResumen()`, la paginación de `getReporte()`. Son funciones puras y **serían trivialmente
   testeables** si se exportaran. `[TODO: hoy son privadas del módulo; exportarlas y cubrirlas es el
   siguiente paso obvio de testing.]`
-- **`src/api/client.ts`** — el cálculo del estado de red y `mensajeDeError()` (RFC 7807).
+- **`src/api/client.ts`** — el cálculo del estado de red, `redConfirmada()` y `mensajeDeError()`
+  (RFC 7807).
+- **`src/api/offline.ts`** — la mecánica del modo Sin Internet (AsyncStorage, copia de fotos,
+  `sincronizar()`). Lo puro que sí se puede probar ya se extrajo a `rules.ts` (las tres funciones de
+  arriba); lo que queda depende de AsyncStorage y `expo-file-system`. Ver
+  [12-MODO-OFFLINE.md § 12](12-MODO-OFFLINE.md).
 - **`src/lib/device.ts`** — depende de APIs nativas; su contrato de resiliencia (nunca lanza) es la
   garantía en su lugar.
 - **`src/store/*`** — transiciones del draft, guard de sesión.
@@ -87,3 +95,6 @@ No está automatizado; es lo que conviene recorrer en dispositivo con `USE_MOCK=
 5. Historial ▸ En FROG y ▸ Faltantes traen filas para la ruta.
 6. Reporte: generar Excel y PDF, abrir y descargar.
 7. Apagar el backend → el banner rojo aparece; encenderlo → desaparece.
+8. **Modo Sin Internet** (los 10 pasos de [12-MODO-OFFLINE.md § 12](12-MODO-OFFLINE.md)): precargar
+   en Inicio → modo avión → activar el modo → censar → ver la fila roja → volver la red → *Enviar
+   pendientes* → confirmar que la fila deja de estar en rojo y trae sus fotos.

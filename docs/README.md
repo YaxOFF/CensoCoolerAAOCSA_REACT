@@ -18,7 +18,7 @@ backend que existe hoy** — ver [05-API](05-API.md).
 |---|---|
 | [01-ESTRUCTURA.md](01-ESTRUCTURA.md) | Árbol de carpetas, archivos clave, convenciones, puntos de entrada |
 | [02-ARQUITECTURA.md](02-ARQUITECTURA.md) | Capas, flujo de guardado paso a paso, detección de red, decisiones técnicas |
-| [03-FLUJOS.md](03-FLUJOS.md) | Los 4 flujos (sesión, censar, reporte, auto-actualización) con diagramas |
+| [03-FLUJOS.md](03-FLUJOS.md) | Los 5 flujos (sesión, censar, reporte, auto-actualización, modo offline) con diagramas |
 | [04-DATOS.md](04-DATOS.md) | Modelo de dominio, tipos del backend (`FrogRow`, `Cooler`), persistencia, seed |
 | [05-API.md](05-API.md) | El contrato `CensoApi`, sus 10 métodos, endpoints reales y sus gotchas |
 | [06-DEPENDENCIAS.md](06-DEPENDENCIAS.md) | Librerías usadas y para qué, deps declaradas sin usar |
@@ -27,6 +27,7 @@ backend que existe hoy** — ver [05-API](05-API.md).
 | [09-DEBUGGING.md](09-DEBUGGING.md) | Errores comunes, cómo depurar en campo |
 | [10-ONBOARDING.md](10-ONBOARDING.md) | Setup, primeros tickets, glosario |
 | [11-BUILD-Y-ACTUALIZACIONES.md](11-BUILD-Y-ACTUALIZACIONES.md) | APK con Gradle, `scripts/release.sh`, auto-actualización |
+| [12-MODO-OFFLINE.md](12-MODO-OFFLINE.md) | **Modo Sin Internet**: padrón precargado, cola de censos, sincronización. Doc de mantenimiento |
 
 ## Qué hace el proyecto
 
@@ -37,7 +38,8 @@ verificadas por `npm run check`.
 
 Desde el port original la app creció con cosas que la demo no tenía: escaneo real de código de
 barras, subida de evidencias al servidor, reporte generado en el backend (PDF/Excel por URL),
-historial en tres modos (censados / FROG / faltantes), banner de red y auto-actualización del APK.
+historial en tres modos (censados / FROG / faltantes), banner de red, auto-actualización del APK y
+**modo Sin Internet** con padrón precargado y cola de censos ([12-MODO-OFFLINE.md](12-MODO-OFFLINE.md)).
 
 ## Stack tecnológico
 
@@ -94,8 +96,9 @@ flowchart TD
         Mock["mock.ts — FROG simulada + AsyncStorage"]
         Http["http.ts — fetch real"]
         Client["client.ts — fetch + estado de red"]
+        Offline["offline.ts — modo Sin Internet"]
         Updates["updates.ts — APK"]
-        Index["index.ts — elige mock u http"]
+        Index["index.ts — elige mock u http (envuelto en offline)"]
     end
 
     Pantallas --> Store
@@ -103,9 +106,12 @@ flowchart TD
     Pantallas --> Index
     Store --> Index
     Index --> Contract
-    Index -.EXPO_PUBLIC_USE_MOCK.-> Mock
-    Index -.EXPO_PUBLIC_USE_MOCK.-> Http
+    Index -.USE_MOCK=true.-> Mock
+    Index -.USE_MOCK=false.-> Offline
     Mock --> Rules
+    Offline --> Http
+    Offline --> Rules
+    Offline --> Cache[("AsyncStorage:\npadrón + cola")]
     Http --> Client
     Updates --> Version
 ```

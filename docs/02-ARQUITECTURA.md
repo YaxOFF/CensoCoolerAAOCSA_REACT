@@ -34,7 +34,7 @@ api/     → El único borde que sabe si los datos vienen de AsyncStorage o de u
 | `app/` | Renderizar pantallas, leer input, invocar `store/` y `api.*` | `fetch` directo, contener reglas de negocio, saber si hay mock |
 | `store/` | Estado compartido (sesión, draft, registros, catálogos, resumen) | Reglas de negocio complejas (delega a `lib/rules.ts`), hardware |
 | `lib/` | Reglas puras (`rules.ts`), hardware resiliente (`device.ts`), parseo (`version.ts`), formato | Conocer React, conocer si el backend es mock o real |
-| `api/` | Contrato (`contract.ts`), dos implementaciones (`mock.ts`, `http.ts`), el interruptor (`index.ts`), transporte (`client.ts`) y updates (`updates.ts`) | UI, navegación |
+| `api/` | Contrato (`contract.ts`), dos implementaciones (`mock.ts`, `http.ts`), el interruptor (`index.ts`), transporte (`client.ts`), modo Sin Internet (`offline.ts`) y updates (`updates.ts`) | UI, navegación |
 
 Algunas pantallas llaman a `api.*` **directamente**, sin pasar por un store: `search.tsx`
 (`lookupEnfriador`), `history.tsx` (`listCoolers`/`listFrog`/`listFaltantes`/`resetDemo`) y
@@ -65,7 +65,7 @@ Desde que el usuario toca "Guardar censo" en `app/censo/form.tsx`:
 > servidor; reintentar chocaría con el 409 de serie duplicada. `http.ts` hace `console.warn` y
 > conserva la `uri` local de esa foto. Consecuencia concreta: puede existir un censo en el servidor
 > con menos evidencias de las que el inspector tomó, y la app no lo avisa. Si algún día importa,
-> el lugar es una cola en `src/api/`.
+> el lugar es `src/api/offline.ts`, que ya es la cola.
 
 ## Diagrama de componentes
 
@@ -105,6 +105,47 @@ Dos decisiones que importan:
 
 Con `EXPO_PUBLIC_USE_MOCK=true` no se dispara nada: el mock no pasa por `client.ts`, y
 `NetInfo.configure` ni siquiera corre si `API_URL` está vacía.
+
+`redConfirmada()` separa el `'ok'` del arranque —optimista, todavía no contestó nadie— del `'ok'`
+comprobado por NetInfo o por una petición. Lo consume el modo Sin Internet: sin esa distinción, una
+app que abre sin señal saldría del modo antes del primer sondeo.
+
+## Modo Sin Internet (`src/api/offline.ts`)
+
+`api = USE_MOCK ? mockApi : conOffline(httpApi)`. El envoltorio es transparente mientras hay red;
+con el modo activo sirve las lecturas del padrón descargado y encola las escrituras. Ninguna
+pantalla toca AsyncStorage. Lo puro (`pendienteAFilaCooler`, `faltantesSinCola`,
+`serieNormalizada`) vive en `lib/rules.ts` y lo cubre `npm run check`.
+
+```mermaid
+flowchart TD
+    Idx["(tabs)/index.tsx"] -->|"precargarPadron(ruta, udn)"| Off["api/offline.ts"]
+    Off -->|"listFrog + listFaltantes\n+ getResumen + getCatalogos"| Http["api/http.ts"]
+    Off --> Store[("AsyncStorage:\npadrón · cola · modo")]
+    Modal["ui/ModalOffline.tsx"] -->|"activarModoOffline()"| Off
+    Form["censo/form.tsx"] -->|"saveRegistro()"| Off
+    Off -->|"modo ON: encola + copia fotos"| Docs[("documentDirectory")]
+    Hist["(tabs)/history.tsx"] -->|"sincronizar()"| Off
+    Off -->|"POST /coolers por pendiente"| Http
+    Client["api/client.ts"] -->|"red confirmada ⇒ apaga el modo"| Off
+```
+
+| Momento | Qué pasa |
+|---|---|
+| **Precarga** | Solo desde `index.tsx` al enfocarse. Decisión de producto: un único punto de descarga, para que el inspector sepa dónde se refrescan sus datos. |
+| **Caída de red** | `ModalOffline` ofrece el modo. **Sin padrón no ofrece nada**: explica que hay que precargar desde Inicio. |
+| **Búsqueda** | `lookupEnfriador` va contra el padrón local. Serie ausente ⇒ se bloquea igual que en línea (§4); solo cambia el mensaje. |
+| **Guardado** | `saveRegistro` encola, hace upsert por serie (§8) y copia las evidencias a `documentDirectory`. |
+| **Reconexión** | El modo se apaga solo. El **envío no**: es un botón en el Historial. |
+| **Envío** | Sale de la cola con 2xx o con **409** (el servidor ya tiene esa serie). Otro error deja el censo encolado con su motivo. |
+
+Tres decisiones que importan:
+
+- **Las fotos se copian a `documentDirectory`.** `expo-image-picker` las deja en la caché, que
+  Android puede vaciar; un censo encolado puede pasar horas ahí. Se borran solo tras el envío.
+- **`sincronizar()` recalcula la cola al final sobre la vigente, no sobre la foto del inicio.**
+  Enviar tarda (van fotos) y el inspector puede encolar otro censo mientras tanto.
+- **El envío nunca es automático.** Un fallo de sincronización tiene que verse en el momento.
 
 ## Decisiones técnicas documentadas
 

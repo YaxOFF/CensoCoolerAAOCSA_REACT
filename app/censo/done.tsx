@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fmtCoord } from '@/lib/format';
 import { useDraft } from '@/store/draft';
 import { colors } from '@/theme';
-import { Card, H2, Hero, KeyValues, Muted, PrimaryButton, Screen, SecondaryButton } from '@/ui';
+import { Card, H2, Hero, KeyValues, Muted, Note, PrimaryButton, Screen, SecondaryButton } from '@/ui';
 
 export default function DoneScreen() {
   const { ultimo } = useDraft();
@@ -24,9 +24,18 @@ export default function DoneScreen() {
           <Ionicons name="checkmark" size={44} color="#fff" />
         </View>
         <H2>Censo guardado</H2>
-        <Muted style={{ marginBottom: 8 }}>
-          Registro almacenado. <Text style={{ fontWeight: '700' }}>Censado = SI</Text>.
-        </Muted>
+        {ultimo.pendienteEnvio ? (
+          <View style={{ alignSelf: 'stretch', marginBottom: 8 }}>
+            <Note>
+              Se guardó en el teléfono porque no hay conexión. Envíalo desde el Historial cuando
+              vuelva la señal; hasta entonces aparece en rojo.
+            </Note>
+          </View>
+        ) : (
+          <Muted style={{ marginBottom: 8 }}>
+            Registro almacenado. <Text style={{ fontWeight: '700' }}>Censado = SI</Text>.
+          </Muted>
+        )}
 
         <View style={{ alignSelf: 'stretch' }}>
           <KeyValues
@@ -38,6 +47,7 @@ export default function DoneScreen() {
               ['GPS', `${fmtCoord(ultimo.lat, 4)}, ${fmtCoord(ultimo.lng, 4)}`],
               ['Fotos', `${ultimo.fotos.length} de 3`],
               ['Censado', ultimo.censado],
+              ['Envío', ultimo.pendienteEnvio ? 'Pendiente (sin conexión)' : 'Enviado al servidor'],
             ]}
           />
         </View>

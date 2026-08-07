@@ -25,7 +25,13 @@ No hay logging estructurado ni servicio externo (Sentry, etc.). Los canales disp
 | Banner ámbar "red inestable" | Alguna respuesta tardó ≥ 5 s | Es informativo; se limpia con la siguiente respuesta rápida |
 | Timeout en Android físico | `API_URL=http://localhost:…` — el teléfono no ve el localhost de la PC | `adb reverse tcp:PUERTO tcp:PUERTO`, o usar la IP LAN |
 | **400 al guardar un censo** | Enum mal serializado (`CORRECCIÓN` con acento, `EN_PISO` con guion bajo) o campo requerido vacío | El mensaje del 400 trae el detalle campo por campo (`client.ts` concatena `errors`). Los mapeos correctos están en `http.ts` |
-| **409 al guardar** | Esa serie ya se censó en la ronda vigente | Es el upsert del §8 resuelto del lado del servidor; no reintentar a ciegas |
+| **409 al guardar** | Esa serie ya se censó en la ronda vigente | Es el upsert del §8 resuelto del lado del servidor; no reintentar a ciegas. En la cola offline el 409 **saca** el censo de la cola: ya está en el servidor |
+| **El modal "Sin Internet" no aparece al caerse la red** | El modo ya está activo, se descartó con "Ahora no" en esta misma caída, o `USE_MOCK=true` (el mock no pasa por `client.ts`) | El descarte se resetea cuando la red vuelve a `ok`. Ver [12-MODO-OFFLINE.md](12-MODO-OFFLINE.md) |
+| **El modal dice "no hay datos descargados"** | Nunca se abrió Inicio con red: la precarga solo corre ahí (decisión de producto) | Conectarse y abrir la pestaña Inicio; la línea de estado confirma cuántos equipos quedaron |
+| **El modo Sin Internet no se apaga al volver la red** | El sondeo a `/health` todavía no confirma (`redConfirmada()` sigue en `false`) | Esperar el sondeo (≤5 s sin red) o forzar tráfico. El `'ok'` del arranque es optimista y a propósito no cuenta |
+| **Censos en rojo que no se van** | El envío falló y el censo sigue encolado a propósito: nada sale de la cola sin 2xx o 409 | Abrir el detalle: trae el motivo exacto en "Sin enviar al servidor". Reintentar con *Enviar pendientes* |
+| Un pendiente perdió sus fotos | `copyAsync` a `documentDirectory` falló y la caché se vació antes del envío | El censo se manda igual sin esa evidencia; es el mal menor elegido. Ver [12-MODO-OFFLINE.md § 6](12-MODO-OFFLINE.md) |
+| El avance del Dashboard no cuadra sin red | `getResumen` offline **estima**: suma la cola al último resumen cacheado | Esperado. Se corrige al sincronizar y volver a Inicio |
 | El censo se guardó pero le faltan fotos | Una evidencia falló al subir; el censo NO se tumba a propósito | Buscar el `console.warn('No se pudo subir la evidencia …')` en Metro |
 | Las fotos del Historial salen rotas | El backend emite las URLs con un host que el teléfono no alcanza | Setear `EXPO_PUBLIC_IMG_URL` con el host alcanzable, o usar `adb reverse` |
 | Formulario no deja editar campos de cliente/equipo | Esperado si `status === 'CORRECTO'` (§6) | Solo `CORRECCIÓN`/`NUEVO` habilitan edición |

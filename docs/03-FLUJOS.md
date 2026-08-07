@@ -1,7 +1,7 @@
 # 🔀 La Lógica en Movimiento
 
-Cuatro flujos: **sesión/login**, **censar un equipo** (el corazón de la app), **reporte
-corporativo** y **auto-actualización del APK**.
+Cinco flujos: **sesión/login**, **censar un equipo** (el corazón de la app), **reporte
+corporativo**, **auto-actualización del APK** y **modo Sin Internet**.
 
 ---
 
@@ -256,3 +256,55 @@ Cómo publicar una versión nueva: [11-BUILD-Y-ACTUALIZACIONES.md](11-BUILD-Y-AC
 - Tocar una fila abre un modal de detalle: todos los campos + las evidencias con su imagen (solo
   los censados tienen fotos).
 - `esCooler(f)` distingue las dos formas por la presencia de `id`.
+
+
+---
+
+## Flujo 5 — Modo Sin Internet
+
+### Descripción
+
+Perder señal no puede detener la jornada. La app precarga el padrón de FROG de la ruta, ofrece
+pasar al modo Sin Internet cuando el sondeo a `/health` deja de contestar, deja seguir buscando y
+censando contra esa copia, encola los censos y los manda con un botón cuando vuelve la red.
+
+Todo vive en `src/api/offline.ts`, envolviendo a `httpApi`. Las pantallas siguen llamando a
+`api.*`; solo `index.tsx`, `history.tsx`, `search.tsx`, `BannerRed` y `ModalOffline` importan el
+estado observable del módulo, igual que ya hacían con `client.ts` y `updates.ts`.
+
+### Paso a paso técnico
+
+1. **Precarga** — `app/(tabs)/index.tsx` llama `precargarPadron(ruta, udn)` al enfocarse. Baja
+   `listFrog` + `listFaltantes` + `getResumen` + `getCatalogos` a AsyncStorage. Es el **único**
+   punto de descarga; la pantalla muestra cuántos equipos hay y de cuándo son, o el error con un
+   botón *Reintentar*.
+2. **Caída** — NetInfo deja de alcanzar `/health` ⇒ `estadoRed === 'sin-conexion'` ⇒
+   `ModalOffline` pregunta. **Sin padrón no ofrece activar**: explica que hay que precargar desde
+   Inicio, porque sin datos no se puede buscar ninguna serie.
+3. **Captura** — con el modo activo, `lookupEnfriador` busca en el padrón local (normalizando el
+   prefijo `C_`). Serie ausente ⇒ `null` ⇒ `search.tsx` bloquea igual que en línea (§4), con un
+   mensaje que aclara que se buscó en la copia descargada.
+4. **Guardado** — `saveRegistro` copia las evidencias a `documentDirectory`, encola con upsert por
+   serie (§8) y devuelve el registro con `pendienteEnvio: true`. `done.tsx` lo dice explícitamente.
+5. **Reconexión** — `client.ts` confirma la red (`redConfirmada()`) y `offline.ts` apaga el modo
+   solo. **La cola no se manda sola.**
+6. **Envío** — el botón del Historial llama `sincronizar()`, que recorre la cola con
+   `httpApi.saveRegistro`. El resultado se muestra en un `Alert`: enviados, ya registrados (409) y
+   los que fallaron con su motivo.
+
+### Estados de error
+
+| Situación | Qué ve el inspector |
+|---|---|
+| Sin red y sin padrón | Modal explicando que hay que precargar desde Inicio |
+| Precarga fallida | Línea roja en Inicio con el motivo + *Reintentar* |
+| Serie fuera del padrón | Alerta que aclara que se buscó en la copia descargada |
+| Censo encolado | Fila roja en Historial (`Cooler.pendienteEnvio`) + banner morado con el conteo |
+| Envío parcial | `Alert` con enviados / ya registrados / fallidos y el motivo de cada uno |
+| Envío fallido | El censo **sigue** en la cola, con `errorEnvio` visible en su detalle |
+| Reporte sin red | `ApiError` explicando que necesita conexión y hay que enviar los pendientes |
+
+> ⚠️ **Nada sale de la cola sin respuesta del servidor**: o un 2xx, o el **409** que significa "esa
+> serie ya está censada en la ronda vigente". Cualquier otro error la conserva. Y `sincronizar()`
+> recalcula la cola al final sobre la **vigente**, no sobre la del inicio: enviar tarda (van fotos)
+> y el inspector puede encolar otro censo mientras tanto.

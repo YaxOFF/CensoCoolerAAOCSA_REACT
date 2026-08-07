@@ -7,12 +7,15 @@
    evidencias) y no paginan: son decenas de filas y FlatList ya virtualiza. */
 
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Alert, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, USE_MOCK, type Cooler, type FrogRow } from '@/api';
+import { leerEstadoRed, suscribirRed } from '@/api/client';
+import { leerEstadoOffline, sincronizar, suscribirOffline } from '@/api/offline';
 import { fmtFecha } from '@/lib/format';
+import { serieNormalizada } from '@/lib/rules';
 import { colors, estadoColor, estadoLabel, radius, shadow, statusColor } from '@/theme';
 import { useSession } from '@/store/session';
 import { Dropdown, Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, PrimaryButton, Segmented, Tag, ViewHead } from '@/ui';
@@ -33,7 +36,7 @@ const MODOS: { key: Modo; label: string }[] = [
 ];
 
 /** Las series de FROG vienen con prefijo `C_`; el censo usa la serie desnuda. */
-const sinPrefijo = (s: string) => s.replace(/^C_/i, '').trim();
+const sinPrefijo = serieNormalizada;
 
 /** Solo los censos traen id: es lo que distingue un Cooler de una fila cruda de FROG. */
 function esCooler(f: Fila): f is Cooler {
@@ -56,6 +59,9 @@ export default function HistoryScreen() {
   const [error, setError] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Fila | null>(null);
   const [tick, setTick] = useState(0);
+  const [enviando, setEnviando] = useState(false);
+  const off = useSyncExternalStore(suscribirOffline, leerEstadoOffline, leerEstadoOffline);
+  const red = useSyncExternalStore(suscribirRed, leerEstadoRed, leerEstadoRed);
 
   // El modo llega por query string desde las tarjetas del Inicio (/history?modo=frog).
   useEffect(() => {
@@ -117,6 +123,39 @@ export default function HistoryScreen() {
     setPage(1);
     setBuscada(serie);
     setTick((t) => t + 1); // misma serie dos veces: fuerza la recarga
+  }
+
+  /* Envío manual de la cola offline. Es manual a propósito: si algo falla, el
+     inspector tiene que enterarse en el momento, no descubrirlo días después. */
+  async function enviarPendientes() {
+    setEnviando(true);
+    try {
+      const r = await sincronizar();
+      const lineas = [
+        r.enviados ? `${r.enviados} censo(s) enviados.` : '',
+        r.yaRegistrados ? `${r.yaRegistrados} ya estaban registrados en el servidor.` : '',
+        ...r.fallidos.map((f) => `• ${f.serie}: ${f.error}`),
+      ].filter(Boolean);
+
+      Alert.alert(
+        r.fallidos.length ? 'Envío incompleto' : 'Censos enviados',
+        [
+          ...lineas,
+          r.fallidos.length ? 'Los que fallaron siguen guardados en el teléfono; puedes reintentar.' : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      );
+    } catch (e) {
+      Alert.alert(
+        'No se pudo enviar',
+        e instanceof Error ? e.message : 'Error desconocido. Tus censos siguen guardados.'
+      );
+    } finally {
+      setEnviando(false);
+      setPage(1);
+      setTick((t) => t + 1);
+    }
   }
 
   function confirmarLimpieza() {
@@ -210,6 +249,30 @@ export default function HistoryScreen() {
               </View>
             )}
 
+            {/* Cola offline: siempre a la vista mientras quede algo sin mandar. */}
+            {esCenso && off.pendientes > 0 && (
+              <View style={s.cola}>
+                <Text style={s.colaTitulo}>
+                  {off.pendientes} censo(s) guardados en el teléfono, sin enviar
+                </Text>
+                <PrimaryButton
+                  onPress={enviarPendientes}
+                  loading={enviando}
+                  disabled={off.modo || red === 'sin-conexion'}
+                  icon="cloud-upload-outline"
+                >
+                  Enviar pendientes
+                </PrimaryButton>
+                {(off.modo || red === 'sin-conexion') && (
+                  <Muted style={{ fontSize: 12 }}>
+                    {off.modo
+                      ? 'Estás en modo Sin Internet. Cuando vuelva la señal el modo se apaga solo y podrás enviarlos.'
+                      : 'Sin conexión: no se pueden enviar todavía.'}
+                  </Muted>
+                )}
+              </View>
+            )}
+
             <ViewHead>
               <Muted>
                 {esCenso ? total : visibles.length} {esCenso ? 'registro(s)' : 'equipo(s)'} · Ruta{' '}
@@ -266,20 +329,29 @@ export default function HistoryScreen() {
 function FilaCooler({ cooler }: { cooler: Cooler }) {
   // El punto sigue a tipoRegistro (CORRECTO/CORRECCION/NUEVO); el campo `status`
   // del backend es el estado físico y va en la pill, no aquí.
+  // Lo capturado sin conexión pisa las dos cosas con rojo: mientras no llegue al
+  // servidor, lo único que importa es que todavía no está a salvo.
+  const pendiente = cooler.pendienteEnvio === true;
   return (
     <>
-      <View style={[s.dot, { backgroundColor: statusColor(cooler.tipoRegistro) }]} />
+      <View
+        style={[s.dot, { backgroundColor: pendiente ? colors.red : statusColor(cooler.tipoRegistro) }]}
+      />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.serie}>{cooler.serie}</Text>
+        <Text style={[s.serie, pendiente && { color: colors.red }]}>{cooler.serie}</Text>
         <Text style={s.sub} numberOfLines={1}>
           {cooler.razonSocial ?? '—'} · {cooler.ruta ?? '—'} · {fmtFecha(cooler.created)}
         </Text>
-        <Text style={s.sub}>
-          {cooler.subStatus ?? '—'}
+        <Text style={s.sub} numberOfLines={1}>
+          {pendiente ? (cooler.errorEnvio ?? 'Guardado en el teléfono') : (cooler.subStatus ?? '—')}
           {cooler.evidencias.length ? ` · ${cooler.evidencias.length} foto(s)` : ''}
         </Text>
       </View>
-      <Tag text={estadoLabel(cooler.status)} color={estadoColor(cooler.status)} />
+      {pendiente ? (
+        <Tag text="Sin enviar" color={colors.red} />
+      ) : (
+        <Tag text={estadoLabel(cooler.status)} color={estadoColor(cooler.status)} />
+      )}
     </>
   );
 }
@@ -306,7 +378,8 @@ function filasCooler(c: Cooler): [string, string][] {
   const direccion = [c.calle, c.numero, c.colonia].filter(Boolean).join(' ');
   return [
     ['Serie', c.serie],
-    ['Folio', String(c.folio)],
+    // Sin enviar todavía no hay folio: lo asigna el servidor al dar de alta el cooler.
+    ['Folio', c.pendienteEnvio ? 'Pendiente de envío' : String(c.folio)],
     ['Censo', `${String(c.censoMes).padStart(2, '0')}/${c.censoAnio}`],
     ['Estado', estadoLabel(c.status)],
     ['Tipo registro', c.tipoRegistro ?? '—'],
@@ -376,6 +449,18 @@ function DetalleModal({ fila, onClose }: { fila: Fila | null; onClose: () => voi
           <MiniButton onPress={onClose}>Cerrar</MiniButton>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
+          {/* Por qué sigue en el teléfono. Sin esto un envío fallido es invisible. */}
+          {censo?.pendienteEnvio && (
+            <View style={s.avisoPendiente}>
+              <Text style={s.avisoTitulo}>Sin enviar al servidor</Text>
+              <Text style={s.avisoTexto}>
+                {censo.errorEnvio
+                  ? `El último intento falló: ${censo.errorEnvio}`
+                  : 'Se capturó sin conexión. Mándalo con el botón "Enviar pendientes" del Historial.'}
+              </Text>
+            </View>
+          )}
+
           <View style={s.card}>
             {/* Tap o pulsación larga copia el valor: en campo se dictan series y folios. */}
             <KeyValues rows={rows} copiable />
@@ -422,6 +507,29 @@ function DetalleModal({ fila, onClose }: { fila: Fila | null; onClose: () => voi
 
 const s = StyleSheet.create({
   buscador: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  cola: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.red,
+    padding: 14,
+    gap: 10,
+    marginBottom: 14,
+    ...shadow,
+  },
+  colaTitulo: { color: colors.red, fontSize: 14, fontWeight: '700' },
+  avisoPendiente: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.red,
+    padding: 14,
+    gap: 4,
+    marginBottom: 12,
+    ...shadow,
+  },
+  avisoTitulo: { color: colors.red, fontSize: 14, fontWeight: '700' },
+  avisoTexto: { color: colors.text2, fontSize: 13 },
   item: {
     backgroundColor: colors.card,
     borderRadius: radius.control,

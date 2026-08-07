@@ -4,7 +4,7 @@
 
 ```
 app/                      Rutas (expo-router, file-based routing). Solo UI y cableado a `api`/store.
-  _layout.tsx              Providers globales + Stack + guard de sesión + <BannerRed> + <ModalActualizacion>.
+  _layout.tsx              Providers globales + Stack + guard de sesión + <BannerRed> + <ModalOffline> + <ModalActualizacion>.
   login.tsx                 Captura de ruta (= login sin contraseña).
   (tabs)/                   Grupo de rutas con tab bar.
     _layout.tsx              Define las 4 tabs: Inicio · Censar · Historial · Panel.
@@ -25,6 +25,7 @@ src/
     mock.ts                     Implementación simulada: FROG en memoria + AsyncStorage.
     http.ts                      Implementación real: fetch + mapeos backend↔dominio (403 líneas).
     client.ts                     Wrapper de fetch (URL base, token, timeout, ApiError) + estado de red.
+    offline.ts                     Modo Sin Internet: envuelve a http.ts (padrón precargado + cola).
     updates.ts                     Auto-actualización del APK (version.json → descarga → instalador).
     index.ts                        Punto único de cambio: exporta `api` = mock o http.
   store/                    Estado compartido (Context providers y hooks).
@@ -41,7 +42,8 @@ src/
     format.ts                    Formato de fecha/coordenadas/porcentaje para mostrar en UI.
   ui/
     index.tsx                  Sistema de diseño completo: 28 componentes (639 líneas).
-    BannerRed.tsx               Aviso "sin conexión / red inestable".
+    BannerRed.tsx               Aviso "sin conexión / red inestable / modo Sin Internet + pendientes".
+    ModalOffline.tsx            Ofrece el modo Sin Internet al caerse la red.
     ModalActualizacion.tsx      Aviso de nueva versión del APK, con progreso y reintento.
   theme.ts                   Colores, radios, sombra, helpers de color por status y por estado.
 
@@ -74,13 +76,14 @@ COMPILAR.md                 Procedimiento completo del APK (fuente de verdad del
 | 7 | `app/censo/form.tsx` | Cablea 4 de las 7 reglas (bloqueo de campos, En Piso, validación, sello del levantamiento). |
 | 8 | `app/(tabs)/history.tsx` | La pantalla más grande: 3 modos de listado, paginación, modal de detalle con evidencias. |
 | 9 | `src/store/draft.tsx` | El censo en construcción; vive solo en memoria (equivalente al `sessionStorage` de la demo). |
-| 10 | `app/_layout.tsx` | Providers + guard de sesión + los dos overlays globales (`BannerRed`, `ModalActualizacion`). |
+| 10 | `app/_layout.tsx` | Providers + guard de sesión + los tres overlays globales (`BannerRed`, `ModalOffline`, `ModalActualizacion`). |
 | 11 | `src/lib/rules.check.ts` | Todo el "test suite" del proyecto: asserts sobre `rules.ts` y `version.ts`, sin framework. |
 | 12 | `src/lib/device.ts` | Contrato de resiliencia de hardware: nunca lanza, siempre devuelve algo usable (`mock: true` si simulado). |
 | 13 | `src/ui/index.tsx` | Todo el sistema de diseño en un archivo: Card, Field, Select, Segmented, Badge, StatRow, DistBars, etc. |
 | 14 | `src/theme.ts` | Paleta y helpers (`statusColor`, `estadoColor`, `estadoLabel`, `tint`) — app fija en modo claro. Las dos nomenclaturas de color están en [04-DATOS.md](04-DATOS.md). |
 | 15 | `src/api/updates.ts` | Auto-actualización del APK: la app se reparte fuera de Play Store. Ver [11-BUILD-Y-ACTUALIZACIONES.md](11-BUILD-Y-ACTUALIZACIONES.md). |
-| 16 | `CLAUDE.md` | Vocabulario del dominio, las 7 reglas, gotchas (overrides de npm, JDK 17, `.env` embebido). |
+| 16 | `src/api/offline.ts` | Modo Sin Internet: padrón precargado + cola de censos. Envuelve a `http.ts` sin que ninguna pantalla se entere. |
+| 17 | `CLAUDE.md` | Vocabulario del dominio, las 7 reglas, gotchas (overrides de npm, JDK 17, `.env` embebido). |
 
 ## Componentes de `src/ui/index.tsx`
 
@@ -115,7 +118,7 @@ Un solo archivo, 28 exports. Nada de esto vive en una librería externa.
 
 - **Arranque de la app**: `expo-router/entry` (declarado en `package.json` como `"main"`) monta
   `app/_layout.tsx`, que envuelve todo en `SessionProvider` → `RecordsProvider` → `DraftProvider`,
-  renderiza el `Stack` y encima `<BannerRed>` y `<ModalActualizacion>`.
+  renderiza el `Stack` y encima `<BannerRed>`, `<ModalOffline>` y `<ModalActualizacion>`.
 - **Guard de sesión**: `Navegacion()` dentro de `app/_layout.tsx` redirige a `/login` si no hay
   `ruta` capturada, y de `/login` hacia `/` si ya la hay.
 - **Primera pantalla real tras login**: `app/(tabs)/index.tsx` (Home).

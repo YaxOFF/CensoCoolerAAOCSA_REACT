@@ -4,7 +4,7 @@
    Si cambias una regla del spec, esta es la red que avisa si rompiste otra.
    Solo importa código puro (rules.ts + types.ts): nada de React ni de expo. */
 
-import type { Catalogos, Enfriador, RegistroCenso } from '../api/types.ts';
+import type { Catalogos, Enfriador, FrogRow, RegistroCenso } from '../api/types.ts';
 
 /* Assert mínimo propio: node:assert no resuelve bajo la config de módulos de Expo. */
 const assert = {
@@ -24,7 +24,10 @@ import {
   construirCsv,
   construirReporte,
   construirResumen,
+  faltantesSinCola,
+  pendienteAFilaCooler,
   resolverStatus,
+  serieNormalizada,
   upsertRegistro,
   fotoOpcional,
   validarDraft,
@@ -161,6 +164,45 @@ const csv = construirCsv(
 assert.equal(csv.startsWith('﻿'), true, 'lleva BOM para los acentos en Excel');
 assert.equal(csv.includes('"Dice ""urgente"", falta parrilla"'), true, 'escapa las comillas dobles');
 assert.equal(csv.split('\r\n').length, 4, 'encabezado + 3 filas');
+
+/* ── Cola offline (modo Sin Internet) ─────────────────────────────────────── */
+
+const { censado: _sinCensado, ...pendiente } = censo('D-4', {
+  status: 'CORRECCIÓN',
+  estadoEnfriador: 'En Piso',
+  observaciones: 'Sin luz',
+  fotos: [{ tipo: 'Placa', uri: 'file:///doc/placa.jpg' }],
+});
+const fila = pendienteAFilaCooler(pendiente, 'cola-1', '2026-08-06T09:30:00.000Z');
+
+assert.equal(fila.serie, 'D-4');
+assert.equal(fila.pendienteEnvio, true, 'la fila se marca como no enviada');
+assert.equal(fila.errorEnvio, null, 'sin intento de envío todavía no hay error');
+// statusColor()/estadoColor() normalizan acentos y guiones bajos: van los valores del dominio.
+assert.equal(fila.tipoRegistro, 'CORRECCIÓN');
+assert.equal(fila.status, 'En Piso');
+assert.equal(fila.evidencias.length, 1, 'las fotos locales se ven como evidencias');
+assert.equal(fila.evidencias[0].url, 'file:///doc/placa.jpg');
+assert.equal(fila.censoAnio, 2026);
+assert.equal(fila.censoMes, 8);
+assert.equal(
+  pendienteAFilaCooler(pendiente, 'cola-1', '2026-08-06T09:30:00.000Z', 'Serie duplicada').errorEnvio,
+  'Serie duplicada',
+  'el motivo del fallo viaja con la fila'
+);
+
+/* La serie de FROG viene con prefijo C_; la del censo no. Comparar en crudo dejaría
+   el equipo como faltante para siempre. */
+assert.equal(serieNormalizada('  c_a-1 '), 'A-1');
+assert.equal(serieNormalizada(null), '');
+
+const FALTANTES: FrogRow[] = [{ SERIE: 'C_A-1' }, { SERIE: 'B-2' }, { SERIE: 'C-3' }];
+assert.deepEqual(
+  faltantesSinCola(FALTANTES, ['a-1', 'C-3']).map((f) => f.SERIE),
+  ['B-2'],
+  'lo censado en el teléfono ya no cuenta como faltante, con o sin prefijo C_'
+);
+assert.equal(faltantesSinCola(FALTANTES, []).length, 3, 'sin cola no descuenta nada');
 
 console.log('✓ reglas del censo OK');
 

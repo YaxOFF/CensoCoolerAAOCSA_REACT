@@ -109,7 +109,9 @@ function normalizaTipo(tipo: string | null | undefined): string {
   return TIPOS_ENFRIADOR.find((t) => plano(t) === plano(limpio)) ?? limpio.toUpperCase();
 }
 
-function mapFrog(row: FrogRow, serie: string): Enfriador {
+/** Exportada para que la cola offline (./offline.ts) mapee el padrón cacheado igual
+    que si viniera del endpoint: mismo Enfriador, misma normalización de tipo. */
+export function mapFrog(row: FrogRow, serie: string): Enfriador {
   const direccion = [[row.CALLE, row.NUMERO].filter(Boolean).join(' '), row.COLONIA]
     .filter(Boolean)
     .join(', ');

@@ -24,6 +24,7 @@ para que conectarlo sea cambiar un archivo de entorno. Ver *Conectar el backend 
   y `/docs/01-ESTRUCTURA.md`.
 - Para los endpoints reales, sus mapeos y sus gotchas, `/docs/05-API.md`.
 - Para el modelo de datos y las dos nomenclaturas de color, `/docs/04-DATOS.md`.
+- Para el modo Sin Internet (padrón precargado, cola, sincronización), `/docs/12-MODO-OFFLINE.md`.
 - Para configuración y variables de entorno, `/docs/07-CONFIGURACION.md`.
 - Para compilar y publicar una versión, `/docs/11-BUILD-Y-ACTUALIZACIONES.md` y `COMPILAR.md`.
 - Si necesitas ayuda rápida, comienza por `/docs/README.md`.
@@ -138,7 +139,8 @@ src/
     mock.ts              Implementación simulada (FROG + AsyncStorage)
     http.ts              Implementación real (fetch)
     client.ts            Wrapper de fetch: URL base, headers, timeout, errores
-    index.ts             `api` = mock o http según EXPO_PUBLIC_USE_MOCK
+    offline.ts           Modo Sin Internet: envuelve a http.ts (padrón + cola)
+    index.ts             `api` = mock o http (envuelto en offline) según EXPO_PUBLIC_USE_MOCK
   store/                 Context providers: session, records, draft, catalogos, resumen
   lib/                   rules.ts (negocio), device.ts (GPS/cámara), format.ts
   ui/index.tsx           Componentes base (Card, Field, Select, Badge, StatRow, DistBars…)
@@ -204,6 +206,36 @@ El banner de "sin conexión / red inestable" vive en `src/ui/BannerRed.tsx`, mon
 precompilado dentro del APK de Expo Go.
 
 Con `EXPO_PUBLIC_USE_MOCK=true` no dispara nada: el mock no pasa por `client.ts`.
+
+`redConfirmada()` distingue el `ok` optimista del arranque (todavía no contestó nadie) del `ok`
+comprobado. Lo usa el modo Sin Internet para no apagarse antes del primer sondeo.
+
+## Modo Sin Internet
+
+**Documentación completa de mantenimiento: `/docs/12-MODO-OFFLINE.md`** — decisiones de producto y
+sus porqués, ciclo de vida de las fotos, trampas conocidas y cómo hacer cambios comunes.
+
+`src/api/offline.ts` envuelve a `httpApi` — `api = USE_MOCK ? mockApi : conOffline(httpApi)` — para
+que perder la señal no detenga la jornada. Ninguna pantalla sabe de AsyncStorage; lo puro
+(`pendienteAFilaCooler`, `faltantesSinCola`, `serieNormalizada`) vive en `rules.ts` y lo cubre
+`npm run check`.
+
+- **Precarga.** `precargarPadron(ruta, udn)` baja `listFrog` + `listFaltantes` + `getResumen` +
+  `getCatalogos` a AsyncStorage. La dispara **solo `app/(tabs)/index.tsx`** al enfocarse: es el
+  único punto de descarga, a propósito, para que el inspector sepa dónde se refrescan sus datos.
+- **Activación.** `src/ui/ModalOffline.tsx` pregunta cuando `estadoRed === 'sin-conexion'`. Sin
+  padrón descargado **no** ofrece activar: explica que hay que precargar desde Inicio.
+- **Captura.** Con el modo activo, `lookupEnfriador` busca en el padrón local. Serie que no está
+  ⇒ se bloquea igual que en línea (§4); solo cambia el mensaje.
+- **Cola.** `saveRegistro` encola en vez de mandar, hace upsert por serie (§8) y copia las fotos a
+  `documentDirectory` — el directorio de caché donde las deja `expo-image-picker` lo puede vaciar
+  Android, y un censo puede pasar horas encolado.
+- **Salida.** Al confirmarse la red el modo se apaga solo. El envío **no**: es un botón en el
+  Historial (`sincronizar()`), para que un fallo se vea en el momento.
+- **Envío.** Solo sale de la cola con 2xx o con **409** (el servidor ya tiene esa serie). Cualquier
+  otro error deja el censo en la cola con su motivo, visible en el detalle del Historial.
+- **A la vista siempre.** Los pendientes van en rojo en el Historial (`Cooler.pendienteEnvio`) y el
+  `BannerRed` muestra el modo y el conteo en cualquier pantalla.
 
 ## Cómo hacer cambios comunes
 
@@ -398,7 +430,6 @@ modal ofrece un botón que abre esos ajustes.
 
 Decisiones tomadas con el usuario; **no agregar sin pedirlo**:
 
-- **Cola offline / sincronización diferida.** Hoy los censos se guardan localmente vía la capa `api`.
-  Si se necesita, el cambio se contiene en `src/api/` (un `queue.ts` que envuelva a `http.ts`).
 - **Autenticación con contraseña.** La ruta identifica al inspector, como en la demo.
-- **Backend real.** Los endpoints de arriba son el contrato acordado, todavía no implementados.
+- **Sincronización automática en segundo plano.** La cola offline existe (ver arriba), pero el
+  envío es siempre un toque explícito del inspector: un fallo de envío tiene que verse.
