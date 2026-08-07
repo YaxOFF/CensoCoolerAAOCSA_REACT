@@ -15,9 +15,13 @@ import { api, USE_MOCK, type Cooler, type FrogRow } from '@/api';
 import { fmtFecha } from '@/lib/format';
 import { colors, estadoColor, estadoLabel, radius, shadow, statusColor } from '@/theme';
 import { useSession } from '@/store/session';
-import { Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, PrimaryButton, Segmented, Tag, ViewHead } from '@/ui';
+import { Dropdown, Empty, Hero, Input, KeyValues, Loading, MiniButton, Muted, PrimaryButton, Segmented, Tag, ViewHead } from '@/ui';
 
 const PAGE_SIZE = 20;
+
+/** Días de visita del cliente. FREC viene como cadena de letras ("LMV"), así que se filtra por contención. */
+const FRECUENCIAS = ['L', 'M', 'W', 'J', 'V', 'S'] as const;
+type Frecuencia = (typeof FRECUENCIAS)[number];
 
 type Modo = 'censados' | 'frog' | 'faltantes';
 type Fila = Cooler | FrogRow;
@@ -43,6 +47,7 @@ export default function HistoryScreen() {
 
   const [modo, setModo] = useState<Modo>('censados');
   const [serie, setSerie] = useState('');
+  const [frec, setFrec] = useState<Frecuencia | ''>('');
   const [buscada, setBuscada] = useState(''); // la serie ya aplicada, no la que se teclea
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Fila[]>([]);
@@ -132,12 +137,19 @@ export default function HistoryScreen() {
   const esCenso = modo === 'censados';
   const ultimaPagina = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // En FROG y Faltantes traen el padrón completo sin paginar: el filtro por
+  // frecuencia se resuelve aquí y no en el servidor.
+  const visibles =
+    esCenso || !frec
+      ? items
+      : items.filter((f) => !esCooler(f) && (f.FREC ?? '').toUpperCase().includes(frec));
+
   if (cargando && !items.length) return <Loading text="Cargando listado…" />;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
-        data={items}
+        data={visibles}
         keyExtractor={(f, i) => (esCooler(f) ? f.id : `${f.SERIE ?? 'sin-serie'}-${i}`)}
         contentContainerStyle={{ padding: 16, paddingTop: insets.top + 16, paddingBottom: 32 }}
         refreshing={cargando}
@@ -183,9 +195,25 @@ export default function HistoryScreen() {
               </View>
             )}
 
+            {/* Frecuencia: solo en los modos que traen el padrón de FROG. */}
+            {!esCenso && (
+              <View style={s.buscador}>
+                <View style={{ flex: 1 }}>
+                  <Dropdown
+                    value={frec}
+                    options={FRECUENCIAS}
+                    onChange={setFrec}
+                    placeholder="Filtrar por frecuencia…"
+                  />
+                </View>
+                {!!frec && <MiniButton onPress={() => setFrec('')}>Limpiar</MiniButton>}
+              </View>
+            )}
+
             <ViewHead>
               <Muted>
-                {total} {esCenso ? 'registro(s)' : 'equipo(s)'} · Ruta {ruta ?? '—'}
+                {esCenso ? total : visibles.length} {esCenso ? 'registro(s)' : 'equipo(s)'} · Ruta{' '}
+                {ruta ?? '—'}
               </Muted>
               {USE_MOCK && esCenso && (
                 <MiniButton danger onPress={confirmarLimpieza}>
@@ -198,7 +226,9 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <Empty>
             {error ??
-              (esCenso
+              (!esCenso && frec && items.length
+                ? `Ningún equipo con frecuencia ${frec}.`
+                : esCenso
                 ? 'Aún no hay registros censados.'
                 : modo === 'frog'
                   ? 'FROG no tiene equipos para esta ruta.'
