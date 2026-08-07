@@ -3,7 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { USE_MOCK } from '@/api';
 import {
@@ -15,8 +15,9 @@ import {
 import { fmtFecha } from '@/lib/format';
 import { useResumen } from '@/store/resumen';
 import { useSession } from '@/store/session';
-import { colors } from '@/theme';
+import { colors, tint } from '@/theme';
 import {
+  Chip,
   Hero,
   Hint,
   Loading,
@@ -26,7 +27,6 @@ import {
   Screen,
   SecondaryButton,
   StatRow,
-  Tag,
 } from '@/ui';
 
 export default function HomeScreen() {
@@ -81,9 +81,21 @@ export default function HomeScreen() {
       />
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, marginLeft: 4 }}>
-        <Tag text={`Ruta ${ruta ?? '—'}`} color={colors.blue} />
-        {resumen?.folio != null && <Tag text={`Folio ${resumen.folio}`} color={colors.amber} />}
-        <MiniButton onPress={salir}>Cambiar ruta</MiniButton>
+        {/* La ruta identifica al inspector: va en grande, no como tag secundario.
+            Estilo local y no <Tag> para no crecer el tag en el resto de pantallas. */}
+        <View
+          style={{
+            backgroundColor: tint(colors.blue),
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ fontSize: 17, fontWeight: '800', color: colors.blue }}>
+            Ruta {ruta ?? '—'}
+          </Text>
+        </View>
+        <Chip label="Cambiar ruta" onPress={salir} />
       </View>
 
       {error && <Muted style={{ color: colors.red, marginBottom: 12 }}>{error}</Muted>}
