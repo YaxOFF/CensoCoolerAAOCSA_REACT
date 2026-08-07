@@ -56,8 +56,16 @@ export default function SearchScreen() {
     }
     setBuscando(true);
     try {
-      // §4: si FROG responde, se recuperan los datos; si no, el censo nace como NUEVO.
+      // §4: solo se censa lo que existe en FROG. Sin coincidencia se avisa y no se inicia
+      // el censo: casi siempre es un error de captura, no un equipo que falte en la base.
       const enfriador = await api.lookupEnfriador(limpia);
+      if (!enfriador) {
+        Alert.alert(
+          'Serie no encontrada',
+          `La serie ${limpia} no existe en FROG. Verifica que la capturaste completa y sin errores, y vuelve a intentar.`
+        );
+        return;
+      }
       iniciar(limpia, enfriador);
       router.push('/censo/result');
     } catch (e) {
@@ -133,7 +141,7 @@ export default function SearchScreen() {
               {SERIES_DEMO.map((x) => (
                 <Chip key={x} label={x} onPress={() => setSerie(x)} />
               ))}
-              <Chip label="ZZZ-000000 (nuevo)" onPress={() => setSerie('ZZZ-000000')} />
+              <Chip label="ZZZ-000000 (no existe)" onPress={() => setSerie('ZZZ-000000')} />
             </View>
           </>
         )}

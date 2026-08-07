@@ -97,7 +97,9 @@ export default function HomeScreen() {
       </View>
 
       {USE_MOCK && (
-        <Hint>Series de prueba: IMB-100238 · MTF-559012 · OJE-778341. Cualquier otra = NUEVO.</Hint>
+        <Hint>
+          Series de prueba: IMB-100238 · MTF-559012 · OJE-778341. Cualquier otra no existe en FROG.
+        </Hint>
       )}
     </Screen>
   );

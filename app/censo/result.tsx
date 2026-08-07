@@ -3,10 +3,12 @@
 
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { oDash } from '@/lib/format';
 import { resolverStatus } from '@/lib/rules';
 import { useDraft } from '@/store/draft';
+import { colors, radius } from '@/theme';
 import { Badge, Card, H2, Hero, KeyValues, Muted, PrimaryButton, Screen, Segmented } from '@/ui';
 
 export default function ResultScreen() {
@@ -25,9 +27,24 @@ export default function ResultScreen() {
 
   const listo = draft.esNuevo || validacion !== null;
 
+  // FROG distingue razón social (RAZONSOCIAL → nombreCliente) de nombre comercial
+  // (DENCOMERCIAL): el inspector reconoce la tienda por el comercial, no por el fiscal.
+  // El mock no trae la fila cruda, así que se cae a la razón social.
+  const denComercial = draft.frog?.DENCOMERCIAL?.trim() || draft.nombreCliente;
+
   return (
     <Screen>
       <Hero kicker="Paso 1 de 3" title="Resultado" />
+
+      {/* Ruta y nombre comercial arriba de todo: es lo que el inspector necesita
+          confirmar de un vistazo antes de mirar cualquier otro dato. */}
+      <Card style={s.destacado}>
+        <Text style={s.etiqueta}>Ruta</Text>
+        <Text style={s.ruta}>{oDash(draft.ruta)}</Text>
+        <View style={s.linea} />
+        <Text style={s.etiqueta}>Cliente</Text>
+        <Text style={s.cliente}>{oDash(denComercial)}</Text>
+      </Card>
 
       <Card>
         <Badge text={draft.status ?? 'Encontrado en FROG'} />
@@ -75,3 +92,30 @@ export default function ResultScreen() {
     </Screen>
   );
 }
+
+const s = StyleSheet.create({
+  destacado: { paddingVertical: 22 },
+  etiqueta: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  // Tabular para que los dígitos de la ruta no bailen de ancho.
+  ruta: {
+    color: colors.text,
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  linea: {
+    height: 1,
+    backgroundColor: colors.line,
+    marginVertical: 16,
+    borderRadius: radius.pill,
+  },
+  cliente: { color: colors.text, fontSize: 24, fontWeight: '700', letterSpacing: -0.4, marginTop: 2 },
+});
